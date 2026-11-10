@@ -392,70 +392,51 @@ function reveal(){$('bx').classList.remove('wild');$('bx').classList.add('open')
  $('bt').textContent=tx;$('res').innerHTML=`<div class="card big" style="--rc:${RC[p.r]}"><div class="ic">${pSVG(id,RC[p.r])}</div><b>${p.n}</b><span style="color:${RC[p.r]}">${RAR[p.r]} ${p.s}</span><div>${chips(p)}</div><small>${p.d}</small></div>`;$('bc').style.display=''}
 function closeBox(){show('shop')}
 
-/* ---------- MULTIPLAYER (Render Signaling + STUN) ---------- */
+/* ---------- MULTIPLAYER (Global WebRTC with STUN + Render Signaling Support) ---------- */
 const SIGNALING_HOST = 'arenarecoil-server.onrender.com';
-
+/* TURN relays are what make joins work between different networks (phones, school/work wifi, CGNAT).
+   Free public relay below works for testing; for reliable play make a free account at metered.ca,
+   copy your TURN username/credential into MY_TURN and it will be used first. */
+const MY_TURN=[/* { urls:'turn:YOUR-APP.metered.live:443?transport=tcp', username:'YOUR_USER', credential:'YOUR_PASS' }, */];
 function getPeerOptions(){
   return {
-    host: SIGNALING_HOST,
-    port: 443,
-    path: '/peerjs',
-    secure: true,
+    host: SIGNALING_HOST, port: 443, path: '/peerjs', secure: true,
     config: {
+      iceCandidatePoolSize: 4,
       iceServers: [
+        ...MY_TURN,
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun.cloudflare.com:3478' }
+        { urls: 'stun:stun.cloudflare.com:3478' },
+        { urls: 'turn:staticauth.openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:staticauth.openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:staticauth.openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turns:staticauth.openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
       ]
     }
   };
 }
 
-let LBL=[], lpriv=0;
-function privUI(){
-  document.querySelectorAll('.lpv').forEach(b=>b.textContent=lpriv?'🔒 PRIVATE':'🌐 PUBLIC');
-  const t=$('lpt');if(t)t.textContent=lpriv?'PRIVATE · CODE ONLY':'PUBLIC · IN BROWSER';
-}
-function togPriv(){sfx.click();lpriv=lpriv?0:1;privUI();regLobby()}
-
+let LBL=[],lpriv=0;
 function regLobby(){
   if(!mp||!host||!lcode)return;
-  fetch(`https://${SIGNALING_HOST}/api/register-lobby`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      code: lcode,
-      host: NP[me]?NP[me].name:'Host',
-      num: Object.keys(NP).length,
-      phase: phase,
-      priv: lpriv
-    })
-  }).catch(()=>{});
+  fetch('https://'+SIGNALING_HOST+'/api/register-lobby',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({code:lcode,host:NP[me]?NP[me].name:'Host',num:Object.keys(NP).length,phase:phase,priv:lpriv})}).catch(()=>{});
 }
-
 async function fetchLobbies(){
-  try{
-    const r=await fetch(`https://${SIGNALING_HOST}/api/lobbies`);
-    if(!r.ok)return;
-    const d=await r.json();
-    if(d.online!==undefined)$('onc').textContent=d.online;
-    if(d.lobbies){LBL=d.lobbies;renderBrowser()}
-  }catch(e){}
+  try{const r=await fetch('https://'+SIGNALING_HOST+'/api/lobbies');if(!r.ok)return;const d=await r.json();
+    if(d.online!==undefined){const o=$('onc');if(o)o.textContent=d.online}
+    if(d.lobbies){LBL=d.lobbies;renderBrowser()}}catch(e){}
 }
-setInterval(fetchLobbies, 2500);
-fetchLobbies();
-
-function renderBrowser(){
-  const e=$('lbl');
-  if(!e||!$('lobby').classList.contains('on')||$('lj').style.display=='none')return;
-  const h=LBL.length?LBL.map(x=>{
-    const c=String(x.c).replace(/[^A-Z0-9]/g,''),p=x.ph=='play'?'ROUND LIVE':x.ph=='end'?'BETWEEN ROUNDS':'WAITING';
-    return `<div class="lrow"><span class="lrn">${clean(x.h)}</span><span class="lrs">${x.n}/20 · ${p}</span><button class="btn s t" onclick="joinLobby('${c}')">JOIN</button></div>`;
-  }).join(''):'<div class="hint2">No open lobbies right now. Host one!</div>';
-  if(e._h!==h){e._h=h;e.innerHTML=h}
-}
-
+setInterval(fetchLobbies,2500);fetchLobbies();
+function privUI(){document.querySelectorAll('.lpv').forEach(b=>b.textContent=lpriv?'🔒 PRIVATE':'🌐 PUBLIC');const t=$('lpt');if(t)t.textContent=lpriv?'PRIVATE · CODE ONLY':'PUBLIC · IN BROWSER'}
+function togPriv(){sfx.click();lpriv=lpriv?0:1;privUI();regLobby()}
+function renderBrowser(){const e=$('lbl');if(!e||!$('lobby').classList.contains('on')||$('lj').style.display=='none')return;
+ const h=LBL.length?LBL.map(x=>{const c=String(x.c).replace(/[^A-Z0-9]/g,''),p=x.ph=='play'?'ROUND LIVE':x.ph=='end'?'BETWEEN ROUNDS':'WAITING';return `<div class="lrow"><span class="lrn">${clean(x.h)}</span><span class="lrs">${x.n}/20 · ${p}</span><button class="btn s t" onclick="joinLobby('${c}')">JOIN</button></div>`}).join(''):'<div class="hint2">No open lobbies right now. Host one!</div>';
+ if(e._h!==h){e._h=h;e.innerHTML=h}}
+setInterval(renderBrowser,1000);
 const SPS=[];const SPS_OLD=[[-35,28,24],[-25,28,16],[4,36,-24],[-6,36,-28],[30,24,14],[35,24,22],[-55,16,40],[45,16,-36],[55,16,40]];
 let WH=null,mp=0,host=0,peer,conns={},hostConn,me='',NP={},ST={},phase='lobby',tl=0,tlEnd=0,t0=0,eoff=0,inRound=0,lock=0,tabOn=0,lastSt=0,hc=0,lcode='';
 const r2=n=>Math.round(n*100)/100,cl=(n,a)=>Math.max(-a,Math.min(a,+n||0)),clean=x=>String(x).replace(/[^\w .\-]/g,'').slice(0,14).trim()||'Player',fmt=x=>Math.floor(x/60)+':'+String(Math.floor(x%60)).padStart(2,'0');
@@ -470,107 +451,35 @@ function tx(m){if(!host){hostConn&&hostConn.open&&hostConn.send(m);return}
 function setPhase(ph){const o=phase;phase=ph;t0=Date.now();if(ph=='play'){tl=300;for(const id in NP)NP[id].k=NP[id].d=0}if(ph=='end'){tl=20;const L=sorted();WH={id:L[0]?L[0][0]:null,i:pickWheel(),n:L.length,t:Date.now()}}bcM();applyPhase(ph,o);regLobby()}
 function hTick(){const now=Date.now();if(phase=='play'){tl=300-(now-t0)/1000;if(tl<=0)setPhase('end')}else if(phase=='end'){tl=20-(now-t0)/1000;if(tl<=0)setPhase('play')}
  const el=(performance.now()-eoff)/1000;for(const id in conns){const c=conns[id];if(!c.open)continue;const o={};for(const k in ST)if(k!==id)o[k]=ST[k];c.send({t:'S',s:o,el})}applyS(ST);if(++hc%15==0)bcM()}
-
 function hostLobby(){
-  if(needName())return;
-  mp=1;host=1;const nm=getName();
-  lcode=Math.random().toString(36).slice(2,6).toUpperCase();
-  if(peer){try{peer.destroy()}catch(e){}}
-
-  peer=new Peer('arenarecoil-'+lcode, getPeerOptions());
-
-  peer.on('open',id=>{
-    me=id;
-    NP={};
-    NP[me]={name:nm,skin:S.skin,k:0,d:0};
-    eoff=performance.now();
-    setInterval(hTick,66);
-    setInterval(regLobby,3000);
-    regLobby();
-    showLobby();
-  });
-
-  peer.on('connection',c=>{
-    conns[c.peer]=c;
-    c.on('data',m=>hData(c,m));
-    c.on('close',()=>{
-      delete conns[c.peer];
-      dropR(NP[c.peer]);
-      delete NP[c.peer];
-      delete ST[c.peer];
-      bcM();
-      regLobby();
-    });
-    if(Object.keys(NP).length>=20){
-      c.on('open',()=>{c.send({t:'full'});setTimeout(()=>c.close(),300)})
-    }
-  });
-
-  peer.on('error',e=>{
-    alert('Host network error: '+e.type);
-    location.reload();
-  });
-}
-
+ if(needName())return;mp=1;host=1;const nm=getName();
+ lcode=Math.random().toString(36).slice(2,6).toUpperCase();
+ if(peer){try{peer.destroy()}catch(e){}}
+ peer=new Peer('arenarecoil-'+lcode,getPeerOptions());
+ peer.on('open',id=>{me=id;NP={};NP[me]={name:nm,skin:S.skin,k:0,d:0};eoff=performance.now();setInterval(hTick,66);setInterval(regLobby,3000);regLobby();showLobby()});
+ peer.on('connection',c=>{conns[c.peer]=c;c.on('data',m=>hData(c,m));
+  c.on('close',()=>{delete conns[c.peer];dropR(NP[c.peer]);delete NP[c.peer];delete ST[c.peer];bcM();regLobby()});
+  c.on('error',()=>{});
+  if(Object.keys(NP).length>=20)c.on('open',()=>{c.send({t:'full'});setTimeout(()=>c.close(),300)})});
+ /* if the signaling socket drops (Render idles/restarts) the lobby would become un-joinable: reconnect it */
+ peer.on('disconnected',()=>{try{peer.reconnect()}catch(e){}});
+ peer.on('error',e=>{if(e.type=='network'||e.type=='server-error'||e.type=='socket-error'||e.type=='socket-closed'){try{peer.reconnect()}catch(x){}return}alert('Host network error: '+e.type);location.reload()})}
 function joinLobby(code){
-  if(needName())return;
-  mp=1;host=0;const nm=getName();
-  lcode=String(code).toUpperCase().replace(/[^A-Z0-9]/g,'');
-  if(!lcode){alert('Enter a valid lobby code');return;}
-
-  if(peer){try{peer.destroy()}catch(e){}}
-  peer=new Peer(getPeerOptions());
-
-  let connected = false;
-
-  peer.on('open',id=>{
-    me=id;
-    hostConn=peer.connect('arenarecoil-'+lcode, { reliable: true });
-
-    const onConnected = ()=>{
-      if(connected) return;
-      connected = true;
-      hostConn.send({t:'hi',name:nm,skin:S.skin});
-      showLobby();
-    };
-
-    if(hostConn.open){
-      onConnected();
-    } else {
-      hostConn.on('open', onConnected);
-    }
-
-    hostConn.on('data',onMsg);
-
-    hostConn.on('close',()=>{
-      if(connected){
-        alert('Lobby closed by host');
-        location.reload();
-      }
-    });
-
-    setTimeout(()=>{
-      if(!connected){
-        alert('Could not connect to host. Make sure the host is currently in the lobby and you entered the right code.');
-      }
-    }, 12000);
-  });
-
-  peer.on('error',e=>{
-    alert('Could not join ('+e.type+'). Check that the host is in the lobby.');
-  });
-}
-
-function hData(c,m){
-  if(m.t=='hi'){NP[c.peer]={name:clean(m.name),skin:SKINS[m.skin]?+m.skin:0,k:0,d:0};bcM();regLobby();return}
-  if(!NP[c.peer])return;
-  if(m.t=='st'){if(Array.isArray(m.s))ST[c.peer]=m.s}
-  else if(m.t=='f')bc(m,c.peer),visShot(m);
-  else if(m.t=='hit'){if(m.to===me)onMsg(m);else conns[m.to]&&conns[m.to].send(m)}
-  else if(m.t=='kill')scoreKill(m.k===c.peer?null:m.k,c.peer);
-  else if(m.t=='sk'){dropR(NP[c.peer]);NP[c.peer].skin=SKINS[m.skin]?+m.skin:0;bcM()}
-}
-
+ if(needName())return;mp=1;host=0;const nm=getName();
+ lcode=String(code).toUpperCase().replace(/[^A-Z0-9]/g,'');if(!lcode){alert('Enter a lobby code');return}
+ if(peer){try{peer.destroy()}catch(e){}}
+ peer=new Peer(getPeerOptions());let ok=0,done=0;
+ const fail=t=>{if(done||ok)return;done=1;try{peer.destroy()}catch(e){}mp=0;alert(t)};
+ peer.on('open',id=>{me=id;hostConn=peer.connect('arenarecoil-'+lcode,{reliable:true});
+  const up=()=>{if(ok||done)return;ok=1;hostConn.send({t:'hi',name:nm,skin:S.skin});showLobby()};
+  if(hostConn.open)up();else hostConn.on('open',up);
+  hostConn.on('data',onMsg);hostConn.on('error',e=>fail('Connection error: '+(e.type||e)));
+  hostConn.on('close',()=>{if(ok){alert('Lobby closed');location.reload()}});
+  setTimeout(()=>fail('Could not connect to the host.\n\nThe lobby may have closed, or your network blocks direct connections (try another network / ask the host to rejoin).'),20000)});
+ peer.on('disconnected',()=>{if(!ok&&!done){try{peer.reconnect()}catch(e){}}});
+ peer.on('error',e=>{if(e.type=='peer-unavailable')fail('Lobby not found. The host left or the code is wrong.');else if(e.type=='network'||e.type=='socket-error'||e.type=='socket-closed'||e.type=='server-error')return;else fail('Could not join ('+e.type+')')})}
+function hData(c,m){if(m.t=='hi'){NP[c.peer]={name:clean(m.name),skin:SKINS[m.skin]?+m.skin:0,k:0,d:0};bcM();return}if(!NP[c.peer])return;
+ if(m.t=='st'){if(Array.isArray(m.s))ST[c.peer]=m.s}else if(m.t=='f')bc(m,c.peer),visShot(m);else if(m.t=='hit'){if(m.to===me)onMsg(m);else conns[m.to]&&conns[m.to].send(m)}else if(m.t=='kill')scoreKill(m.k===c.peer?null:m.k,c.peer);else if(m.t=='sk'){dropR(NP[c.peer]);NP[c.peer].skin=SKINS[m.skin]?+m.skin:0;bcM()}}
 function scoreKill(k,v){if(phase!='play'||!NP[v])return;NP[v].d++;if(k&&k!==v&&NP[k])NP[k].k++;const km={t:'k',v,k,r:roster()};bc(km);onMsg(km)}
 function setRoster(r){const nn={};for(const [id,n,sk,k,d] of r){const o=NP[id];if(o&&o.skin!==sk)dropR(o);nn[id]=Object.assign(o||{},{name:n,skin:sk,k,d})}for(const id in NP)if(!nn[id])dropR(NP[id]);NP=nn;renderLobby();if(tabOn)drawTab()}
 function onMsg(m){const t=m.t;
@@ -778,10 +687,27 @@ addEventListener('mousemove',e=>{if(playing&&document.pointerLockElement){yaw-=e
 addEventListener('mousedown',e=>{if(playing&&document.pointerLockElement&&e.button==0)mDown=true});addEventListener('mouseup',()=>mDown=false);
 addEventListener('keydown',e=>{if(lock)return;keys[e.code]=1;if(e.shiftKey)keys.Shift=1;if(e.code=='Space'&&e.target.tagName!='INPUT')e.preventDefault();if(e.code=='KeyM')mus=!mus});addEventListener('keyup',e=>{keys[e.code]=0;if(!e.shiftKey)keys.Shift=0});
 
-function phys(e,dt){e.vy-=28*(e.lowg?.6:1)*dt;if(e.vy<-75)e.vy=-75;const w=e.hw,H=e.h,ov=s=>e.x+w>s.x0&&e.x-w<s.x1&&e.z+w>s.z0&&e.z-w<s.z1&&e.y+H>s.y0+.001&&e.y<s.y1-.001;
- e.x+=e.vx*dt;for(const s of solids)if(ov(s)){if(s.g&&Math.hypot(e.vx,e.vz)>10){shatter(s);continue}if(s.y1-e.y<=.7&&e.vy<=3)e.y=s.y1;else{e.x=e.vx>0?s.x0-w:s.x1+w;e.vx=0}}
- e.z+=e.vz*dt;for(const s of solids)if(ov(s)){if(s.g&&Math.hypot(e.vx,e.vz)>10){shatter(s);continue}if(s.y1-e.y<=.7&&e.vy<=3)e.y=s.y1;else{e.z=e.vz>0?s.z0-w:s.z1+w;e.vz=0}}
- e.y+=e.vy*dt;e.ground=null;for(const s of solids)if(ov(s)){if(e.vy<=0){e.y=s.y1;e.ground=s}else e.y=s.y0-H;e.vy=0}}
+function phys(e,dt){
+ e.vy-=28*(e.lowg?.6:1)*dt;if(e.vy<-75)e.vy=-75;
+ const w=e.hw,E=.002,n=Math.max(1,Math.ceil(Math.max(Math.abs(e.vx),Math.abs(e.vz),Math.abs(e.vy))*dt/.35)),h=dt/n;
+ const ov=s=>e.x+w>s.x0&&e.x-w<s.x1&&e.z+w>s.z0&&e.z-w<s.z1&&e.y+e.h>s.y0+.001&&e.y<s.y1-.001;
+ /* can the body stand at height ny without being inside anything (stops popping up onto window sills / ledges under walls) */
+ const clr=ny=>{const oy=e.y;e.y=ny;const r=!solids.some(ov);e.y=oy;return r};
+ const glass=()=>{if(Math.hypot(e.vx,e.vz)>10)for(const s of GL)if(!s.br&&ov(s))shatter(s)};
+ let g=null;
+ for(let i=0;i<n;i++){
+  e.x+=e.vx*h;glass();
+  for(const s of solids)if(ov(s)){if(s.y1-e.y<=.7&&e.vy<=3&&clr(s.y1))e.y=s.y1;else{e.x=(e.vx!=0?e.vx>0:e.x<(s.x0+s.x1)/2)?s.x0-w-E:s.x1+w+E;e.vx=0}}
+  e.z+=e.vz*h;glass();
+  for(const s of solids)if(ov(s)){if(s.y1-e.y<=.7&&e.vy<=3&&clr(s.y1))e.y=s.y1;else{e.z=(e.vz!=0?e.vz>0:e.z<(s.z0+s.z1)/2)?s.z0-w-E:s.z1+w+E;e.vz=0}}
+  e.y+=e.vy*h;
+  for(const s of solids)if(ov(s)){const py=e.y-e.vy*h;
+   if(e.vy<=0&&py>=s.y1-.15){e.y=s.y1;g=s;e.vy=0}
+   else if(e.vy>0&&py+e.h<=s.y0+.15){e.y=s.y0-e.h;e.vy=0}
+   else{const px=Math.min(e.x+w-s.x0,s.x1-(e.x-w)),pz=Math.min(e.z+w-s.z0,s.z1-(e.z-w));
+    if(px<pz){e.x=e.x<(s.x0+s.x1)/2?s.x0-w-E:s.x1+w+E;e.vx=0}else{e.z=e.z<(s.z0+s.z1)/2?s.z0-w-E:s.z1+w+E;e.vz=0}}}
+ }
+ e.ground=g}
 const aimDir=()=>new V(-Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch));
 const inS=q=>solids.some(s=>!s.g&&q.x>s.x0&&q.x<s.x1&&q.y>s.y0&&q.y<s.y1&&q.z>s.z0&&q.z<s.z1);
 const TM=new THREE.MeshBasicMaterial({color:0xe8a030}),TME=new THREE.MeshBasicMaterial({color:0xff4a3a});
@@ -844,7 +770,7 @@ function update(dt){for(const d of dummies)if(d.net&&d.dead<=0){const k=Math.min
  P.inv=Math.max(0,(P.inv||0)-dt);P.lh=(P.lh||0)+dt;if(P.dead<=0&&P.hp<P.mx&&P.lh>4)P.hp=Math.min(P.mx,P.hp+8*dt);
  for(const t of ents){if(t.dead>0)continue;if(t!==P&&t.ground){const k=Math.exp(-6*dt);t.vx*=k;t.vz*=k}t.hitT-=dt;
   for(const p of pads)if(Math.abs(t.x-p.x)<1.3&&Math.abs(t.z-p.z)<1.3&&t.y<p.y+.4&&t.y>p.y-.6&&t.vy<=0){t.vy=p.vy||32;if(p.vx||p.vz){t.vx=p.vx;t.vz=p.vz}t.ground=null;ring(new V(p.x,p.y+.3,p.z),0xd98a2b,3);if(t===P)sfx.boing()}
-  const pv=t.vy;phys(t,dt);if(t===P&&t.ground&&!t.wg&&pv<-14)ring(new V(t.x,t.y+.1,t.z),0xd8c8b0,3);if(t.ground&&!t.wg&&pv<-14)puff(new V(t.x,t.y+.1,t.z),0xb8b0a0,4,2,.15,.3);t.wg=!!t.ground;if(t===P)t.yaw=yaw;animChar(t,dt);
+  const pv=t.vy;phys(t,dt);if(t===P&&t.dashT>0&&Math.abs(t.vx)<.5&&Math.abs(t.vz)<.5)t.dashT=0;if(t===P&&t.ground&&!t.wg&&pv<-14)ring(new V(t.x,t.y+.1,t.z),0xd8c8b0,3);if(t.ground&&!t.wg&&pv<-14)puff(new V(t.x,t.y+.1,t.z),0xb8b0a0,4,2,.15,.3);t.wg=!!t.ground;if(t===P)t.yaw=yaw;animChar(t,dt);
   if(t.y<-30||t.hp<=0){if(t===P){deathFx();mpDeath()}else{t.dead=2.5;t.wu=0;flE(t,0);t.ch.root.visible=false;kos++;if(G.refund){P.ammo=G.mag;P.reloading=0;P.rel=0}save();sfx.ko();koFx()}}}
  if(P.dead>0){P.dead-=dt;if(P.dead<=0)respawn()}streakT-=dt;
  for(let i=pellets.length-1;i>=0;i--){const p=pellets[i],q=p.m.position;p.l-=dt;let dead=p.l<=0;if(p.G.homing&&!p.en){let bt=null,bd=.93;for(const t of dummies)if(t.dead<=0){const dd=new V(t.x-q.x,t.y+1.1-q.y,t.z-q.z),l=dd.length(),c=dd.dot(p.v)/(l*p.v.length());if(l<30&&c>bd){bd=c;bt=dd.multiplyScalar(p.v.length()/l)}}if(bt)p.v.lerp(bt,Math.min(1,dt*3))}const n=Math.ceil(p.v.length()*dt/.7);
@@ -886,5 +812,4 @@ function wheelWin(){const o=$('endo'),r=$('wres');if(!r||!WH)return;const v=WV[W
  dop.fan(jp?3:v>=500?2:1);wconf(jp?260:v>=500?120:70,jp);flash(jp?'#ffd27a':'#7be0a0',jp?.7:.3);o.classList.remove('shk');void o.offsetWidth;o.classList.add('shk');
  if(jp){const h=$('whh');if(h)h.textContent='\uD83D\uDCB0\uD83D\uDCB0 ULTIMATE JACKPOT \uD83D\uDCB0\uD83D\uDCB0';[400,800,1200,1600].forEach(t=>setTimeout(()=>{wconf(120,1);flash('#ffffff',.4);dop.up()},t))}else if(v>=500)setTimeout(()=>{wconf(60,0);dop.up()},500)}
 </script></body></html>
-
 
