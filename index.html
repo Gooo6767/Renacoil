@@ -163,6 +163,15 @@ h3 small{font:12px Oswald;color:#8d949a;letter-spacing:0;margin-left:8px}
 .wc{position:fixed;left:50%;top:45%;z-index:60;pointer-events:none;animation:wcf 2s cubic-bezier(.1,.7,.4,1) forwards}
 @keyframes wcf{0%{transform:translate(0,0) rotate(0)}100%{transform:translate(var(--dx),calc(var(--dy) + 600px)) rotate(var(--r));opacity:0}}
 #endo.shk{animation:scr .5s}
+
+#menu .btn{width:310px;padding:10px 26px 8px;font-size:28px;border-radius:6px;position:relative;overflow:hidden;box-shadow:inset 0 1px 0 #fff6,inset 0 -3px 0 #0004,6px 6px 0 #0009,0 0 20px var(--gl,#0000);transition:transform .15s,filter .15s}
+#menu .btn::after{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,#ffffff80,transparent);transform:skewX(-20deg);transition:left .5s}
+#menu .btn:hover::after{left:130%}
+#menu .btn:hover{transform:skewX(-8deg) translateX(14px) scale(1.04)}
+#menu .btn:active{transform:skewX(-8deg) translateX(8px) scale(.98)}
+#menu .btn.b1{--gl:#f2a33a99}#menu .btn.b2{--gl:#3fe0d099}#menu .btn.b3{--gl:#ff5a4a99}#menu .btn.b4{--gl:#b07aff99}
+#menu .mleft>.btn.b2{background:linear-gradient(180deg,#8cc4ff,#4a90e0 55%,#2f6ab8);color:#08121e;--gl:#4a90e099}
+#menu .btn.b1::before{content:'\25B6\00a0'}#menu .mleft>.btn.b2::before{content:'\1F527\00a0'}#menu .mpr .btn::before{content:'\1F310\00a0'}#menu .btn.b3::before{content:'\1F6D2\00a0'}#menu .btn.b4::before{content:'\1F3AD\00a0'}
 </style></head><body>
 
 <div class="coins" id="coins">🪙 0</div>
@@ -388,7 +397,11 @@ function getPeerOptions(){
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:global.stun.twilio.com:3478' }
+        { urls: 'stun:global.stun.twilio.com:3478' },
+        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
       ]
     }
   };
