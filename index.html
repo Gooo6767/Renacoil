@@ -401,28 +401,12 @@ function getPeerOptions(){
     port: 443,
     path: '/peerjs',
     secure: true,
-    debug: 1,
     config: {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun.cloudflare.com:3478' },
-        // Working public TURN relay fallback for cross-wifi/cellular traffic:
-        {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        }
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' }
       ]
     }
   };
@@ -507,10 +491,7 @@ function hostLobby(){
   });
 
   peer.on('connection',c=>{
-    // Wait until the data channel is actually open
-    c.on('open',()=>{
-      conns[c.peer]=c;
-    });
+    conns[c.peer]=c;
     c.on('data',m=>hData(c,m));
     c.on('close',()=>{
       delete conns[c.peer];
@@ -526,8 +507,8 @@ function hostLobby(){
   });
 
   peer.on('error',e=>{
-    console.error("Host PeerJS error:", e);
-    alert('Host network error: '+e.type+' - please refresh and try again');
+    alert('Host network error: '+e.type);
+    location.reload();
   });
 }
 
@@ -544,41 +525,39 @@ function joinLobby(code){
 
   peer.on('open',id=>{
     me=id;
-    // Tell player we are attempting to connect
-    const joinBtn = document.querySelector('#lbl button');
-    if(joinBtn) joinBtn.textContent = 'CONNECTING...';
+    hostConn=peer.connect('arenarecoil-'+lcode, { reliable: true });
 
-    hostConn=peer.connect('arenarecoil-'+lcode, { 
-      reliable: true,
-      serialization: 'json'
-    });
-
-    hostConn.on('open',()=>{
+    const onConnected = ()=>{
+      if(connected) return;
       connected = true;
       hostConn.send({t:'hi',name:nm,skin:S.skin});
       showLobby();
-    });
+    };
+
+    if(hostConn.open){
+      onConnected();
+    } else {
+      hostConn.on('open', onConnected);
+    }
 
     hostConn.on('data',onMsg);
 
     hostConn.on('close',()=>{
       if(connected){
-        alert('Disconnected from host.');
+        alert('Lobby closed by host');
         location.reload();
       }
     });
 
-    // Timeout alert if different Wi-Fi networks block the P2P channel
     setTimeout(()=>{
       if(!connected){
-        alert('Could not establish a direct peer connection with the host. This usually means the host left or a router firewall is blocking UDP traffic. Try hosting on the other device.');
+        alert('Could not connect to host. Make sure the host is currently in the lobby and you entered the right code.');
       }
-    }, 9000);
+    }, 12000);
   });
 
   peer.on('error',e=>{
-    console.error("Join PeerJS error:", e);
-    alert('Could not join ('+e.type+'). Check that the host is currently in the lobby.');
+    alert('Could not join ('+e.type+'). Check that the host is in the lobby.');
   });
 }
 
