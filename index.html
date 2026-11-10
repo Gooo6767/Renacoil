@@ -449,10 +449,10 @@ fetchLobbies();
 
 function renderBrowser(){
   const e=$('lbl');
-  if(!e||!('lobby').classList.contains('on')||('lj').style.display=='none')return;
+  if(!e||!$('lobby').classList.contains('on')||$('lj').style.display=='none')return;
   const h=LBL.length?LBL.map(x=>{
     const c=String(x.c).replace(/[^A-Z0-9]/g,''),p=x.ph=='play'?'ROUND LIVE':x.ph=='end'?'BETWEEN ROUNDS':'WAITING';
-    return `<div class="lrow"><span class="lrn">clean(x.h)</span><spanclass="lrs">{x.n}/20 · p</span><buttonclass="btnst"onclick="joinLobby('{c}')">JOIN</button></div>`;
+    return `<div class="lrow"><span class="lrn">${clean(x.h)}</span><span class="lrs">${x.n}/20 · ${p}</span><button class="btn s t" onclick="joinLobby('${c}')">JOIN</button></div>`;
   }).join(''):'<div class="hint2">No open lobbies right now. Host one!</div>';
   if(e._h!==h){e._h=h;e.innerHTML=h}
 }
