@@ -144,6 +144,10 @@ h3 small{font:12px Oswald;color:#8d949a;letter-spacing:0;margin-left:8px}
 #hud::after{content:'';position:absolute;inset:0;box-shadow:inset 0 0 14vmin #000a;pointer-events:none}
 
 .nmi.bad{animation:sh .4s}
+#lbl{max-height:30vh;overflow:auto;margin:6px 0 10px}
+.lrow{display:flex;align-items:center;gap:12px;padding:4px 8px;margin:4px 0;background:#151a24;border:2px solid #3a4660}
+.lrn{font:20px var(--f);letter-spacing:.06em;flex:1;color:var(--mus)}
+.lrs{font:14px Oswald;color:#9aa0a6;white-space:nowrap}
 .mpr{display:flex;align-items:center;gap:14px}.onl{font:18px var(--f);letter-spacing:.1em;color:#7be0a0;white-space:nowrap}
 .onl i{display:inline-block;width:10px;height:10px;border-radius:50%;background:#3fe07a;margin-right:6px;box-shadow:0 0 8px #3fe07a;animation:onb 1.5s infinite}@keyframes onb{50%{opacity:.3}}
 #menu{background:radial-gradient(circle at 80% 22%,#8a46e0 0,transparent 46%),radial-gradient(circle at 8% 90%,#14b8aa 0,transparent 44%),radial-gradient(circle at 55% 0,#ff5a7a88 0,transparent 40%),radial-gradient(circle at 95% 95%,#f2a33a66 0,transparent 35%),linear-gradient(160deg,#141a38,#2a1f52 55%,#4a1f46)}
@@ -212,8 +216,9 @@ h3 small{font:12px Oswald;color:#8d949a;letter-spacing:0;margin-left:8px}
 
 <div class="scr sub" id="lobby"><div class="panel" style="min-width:min(520px,94vw)"><h2>MULTIPLAYER</h2>
  <div id="lj"><p class="hint2">Pick your gun &amp; skin first (Workshop / Skins), then host or join a lobby. Up to 20 players, 5-minute rounds.</p>
- <div class="row"><input id="jc" class="nmi" style="width:150px" placeholder="CODE" maxlength="4"><button class="btn s t" onclick="joinLobby($('jc').value)">JOIN</button><button class="btn s" onclick="hostLobby()">HOST LOBBY</button></div></div>
- <div id="lr" style="display:none"><h3>LOBBY CODE: <span id="lcode" style="color:var(--mus)"></span></h3><div id="lpl"></div><div class="row"><button class="btn s" id="lstart" onclick="setPhase('play')">START MATCH</button><button class="btn s r" onclick="location.reload()">LEAVE</button></div></div>
+ <h3>OPEN LOBBIES</h3><div id="lbl"></div>
+ <div class="row"><input id="jc" class="nmi" style="width:150px" placeholder="CODE" maxlength="4"><button class="btn s t" onclick="joinLobby($('jc').value)">JOIN</button><button class="btn s" onclick="hostLobby()">HOST LOBBY</button><button class="btn s lpv" onclick="togPriv()">🌐 PUBLIC</button></div></div>
+ <div id="lr" style="display:none"><h3>LOBBY CODE: <span id="lcode" style="color:var(--mus)"></span><small id="lpt"></small></h3><div id="lpl"></div><div class="row"><button class="btn s" id="lstart" onclick="setPhase('play')">START MATCH</button><button class="btn s lpv" id="lpv2" onclick="togPriv()" style="display:none">🌐 PUBLIC</button><button class="btn s r" onclick="location.reload()">LEAVE</button></div></div>
  <p style="text-align:center"><button class="btn s" onclick="show('menu')">◀ BACK</button></p></div></div>
 <div class="scr" id="endo" style="background:rgba(10,12,14,.82);z-index:45"></div>
 <div id="tab" class="panel" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:35;min-width:min(420px,90vw)"></div>
@@ -414,6 +419,16 @@ function getPeerOptions(){
   return cfg;
 }
 
+let HUBC=null,HUBME=false,LBL=[],LBS={},lpriv=0;
+function hreg(i,cid){if(!i||!i.c)return;if(i.p){delete LBS[i.c];return}LBS[i.c]={c:i.c,h:i.h,n:i.n,ph:i.ph,ts:Date.now(),cid}}
+function lobbyList(){const t=Date.now();return Object.values(LBS).filter(x=>t-x.ts<9000&&x.n>0).map(x=>({c:x.c,h:x.h,n:x.n,ph:x.ph}))}
+function regLobby(){if(!mp||!host)return;const i={c:lcode,h:NP[me]?NP[me].name:'Host',n:Object.keys(NP).length,ph:phase,p:lpriv};if(HUBC&&HUBC.open)HUBC.send({t:'reg',i});else if(HUBME)hreg(i,'self')}
+function privUI(){document.querySelectorAll('.lpv').forEach(b=>b.textContent=lpriv?'🔒 PRIVATE':'🌐 PUBLIC');const t=$('lpt');if(t)t.textContent=lpriv?'PRIVATE · CODE ONLY':'PUBLIC · IN BROWSER'}
+function togPriv(){sfx.click();lpriv=lpriv?0:1;privUI();regLobby()}
+function renderBrowser(){const e=$('lbl');if(!e||!$('lobby').classList.contains('on')||$('lj').style.display=='none')return;
+ const h=LBL.length?LBL.map(x=>{const c=String(x.c).replace(/[^A-Z0-9]/g,''),p=x.ph=='play'?'ROUND LIVE':x.ph=='end'?'BETWEEN ROUNDS':'WAITING';return `<div class="lrow"><span class="lrn">${clean(x.h)}</span><span class="lrs">${x.n}/20 · ${p}</span><button class="btn s t" onclick="joinLobby('${c}')">JOIN</button></div>`}).join(''):'<div class="hint2">No open lobbies right now. Host one!</div>';
+ if(e._h!==h){e._h=h;e.innerHTML=h}}
+setInterval(renderBrowser,1000);
 const SPS=[];const SPS_OLD=[[-35,28,24],[-25,28,16],[4,36,-24],[-6,36,-28],[30,24,14],[35,24,22],[-55,16,40],[45,16,-36],[55,16,40]];
 let WH=null,mp=0,host=0,peer,conns={},hostConn,me='',NP={},ST={},phase='lobby',tl=0,tlEnd=0,t0=0,eoff=0,inRound=0,lock=0,tabOn=0,lastSt=0,hc=0,lcode='';
 const r2=n=>Math.round(n*100)/100,cl=(n,a)=>Math.max(-a,Math.min(a,+n||0)),clean=x=>String(x).replace(/[^\w .\-]/g,'').slice(0,14).trim()||'Player',fmt=x=>Math.floor(x/60)+':'+String(Math.floor(x%60)).padStart(2,'0');
@@ -429,7 +444,7 @@ function setPhase(ph){const o=phase;phase=ph;t0=Date.now();if(ph=='play'){tl=300
 function hTick(){const now=Date.now();if(phase=='play'){tl=300-(now-t0)/1000;if(tl<=0)setPhase('end')}else if(phase=='end'){tl=20-(now-t0)/1000;if(tl<=0)setPhase('play')}
  const el=(performance.now()-eoff)/1000;for(const id in conns){const c=conns[id];if(!c.open)continue;const o={};for(const k in ST)if(k!==id)o[k]=ST[k];c.send({t:'S',s:o,el})}applyS(ST);if(++hc%15==0)bcM()}
 function hostLobby(){if(needName())return;mp=1;host=1;const nm=getName();lcode=Math.random().toString(36).slice(2,6).toUpperCase();peer=new Peer('arenarecoil-'+lcode, getPeerOptions());
- peer.on('open',id=>{me=id;NP={};NP[me]={name:nm,skin:S.skin,k:0,d:0};eoff=performance.now();setInterval(hTick,66);showLobby()});
+ peer.on('open',id=>{me=id;NP={};NP[me]={name:nm,skin:S.skin,k:0,d:0};eoff=performance.now();setInterval(hTick,66);setInterval(regLobby,3000);regLobby();showLobby()});
  peer.on('connection',c=>{conns[c.peer]=c;c.on('data',m=>hData(c,m));c.on('close',()=>{delete conns[c.peer];dropR(NP[c.peer]);delete NP[c.peer];delete ST[c.peer];bcM()});if(Object.keys(NP).length>=20)c.on('open',()=>{c.send({t:'full'});setTimeout(()=>c.close(),300)})});
  peer.on('error',e=>{alert('Network error: '+e.type+' - try again');location.reload()})}
 function joinLobby(code){if(needName())return;mp=1;host=0;const nm=getName();lcode=String(code).toUpperCase().replace(/[^A-Z0-9]/g,'');peer=new Peer(getPeerOptions());
@@ -462,8 +477,8 @@ function againBtn(){$('endo').classList.remove('on');R.domElement.requestPointer
 function applyPhase(ph,old){phase=ph;renderLobby();
  if(ph=='play'){lock=0;$('endo').classList.remove('on');if(inRound){if(old!='play'){respawn();if(!document.pointerLockElement)$('pause').classList.add('on')}}else if(old=='lobby'&&$('lobby').classList.contains('on'))startGame()}
  if(ph=='end'){lock=1;keys={};mDown=false;if(inRound){document.exitPointerLock&&document.exitPointerLock();showEnd()}}}
-function showLobby(){$('lj').style.display='none';$('lr').style.display='';$('lcode').textContent=lcode;show('lobby');renderLobby()}
-function renderLobby(){if(!$('lpl')||!mp)return;$('lpl').innerHTML=Object.entries(NP).map(([id,p])=>`<div style="font:20px var(--f);padding:2px 8px">${id===(host?me:hostConn&&hostConn.peer)?'👑 ':''}${p.name}</div>`).join('');$('lstart').style.display=host&&phase=='lobby'?'':'none'}
+function showLobby(){privUI();$('lj').style.display='none';$('lr').style.display='';$('lcode').textContent=lcode;show('lobby');renderLobby()}
+function renderLobby(){if(!$('lpl')||!mp)return;$('lpl').innerHTML=Object.entries(NP).map(([id,p])=>`<div style="font:20px var(--f);padding:2px 8px">${id===(host?me:hostConn&&hostConn.peer)?'👑 ':''}${p.name}</div>`).join('');$('lstart').style.display=host&&phase=='lobby'?'':'none';const pv=$('lpv2');if(pv)pv.style.display=host?'':'none'}
 addEventListener('keydown',e=>{if(e.code=='Tab'){e.preventDefault();if(mp&&playing){tabOn=1;drawTab();$('tab').style.display='block'}}});addEventListener('keyup',e=>{if(e.code=='Tab'){tabOn=0;$('tab').style.display='none'}});
 setInterval(()=>{const b=$('mpb');if(!mp||(playing&&inRound)){b.style.display='none';return}b.style.display='block';const l=Math.max(0,Math.ceil((tlEnd-performance.now())/1000));$('mpt').textContent='LOBBY '+lcode+' · '+(phase=='lobby'?'WAITING FOR HOST':phase=='play'?'ROUND LIVE '+fmt(l):'NEXT ROUND IN '+l)+' ';$('mpj').style.display=phase=='play'?'':'none';const c=$('ecd');if(c&&phase=='end')c.textContent='NEXT ROUND IN '+l},250);
 /* ---------- 3D GAME ---------- */
@@ -741,23 +756,24 @@ const WV=[100,250,100,500,100,1000,250,100,750,100,500,50000];
 function pickWheel(){const r=Math.random();if(r<.004)return 11;const v=r<.5?100:r<.75?250:r<.9?500:r<.96?750:1000,ix=[];WV.forEach((x,i)=>{if(x==v)ix.push(i)});return ix[Math.random()*ix.length|0]}
 function drawWheel(cv){const g=cv.getContext('2d'),R=150,seg=Math.PI*2/12,cols=['#d9533c','#f2a33a','#3fb7ad','#9b6ae0','#4a90c8','#e0568a'];
  WV.forEach((v,i)=>{const a=-Math.PI/2+i*seg,jp=v>=50000;g.beginPath();g.moveTo(R,R);g.arc(R,R,R-2,a,a+seg);g.closePath();g.fillStyle=jp?'#ffd27a':cols[i%6];g.fill();g.strokeStyle='#16191c';g.lineWidth=3;g.stroke();
-  g.save();g.translate(R,R);g.rotate(a+seg/2);g.textAlign='right';g.font=(jp?'26px':'30px')+' "Bebas Neue",Impact,sans-serif';g.lineWidth=4;g.strokeStyle='#000';const t=jp?'50,000 \uD83E\uDE99':'\uD83D\uDD37 '+v;g.strokeText(t,R-16,10);g.fillStyle=jp?'#7a3a00':'#fff';g.fillText(t,R-16,10);g.restore()});
+  g.save();g.translate(R,R);g.rotate(a+seg/2);g.textAlign='right';g.font=(jp?'26px':'30px')+' "Bebas Neue",Impact,sans-serif';g.lineWidth=4;g.strokeStyle='#000';const t=jp?'50,000 \uD83E\uDE99':'\uD83E\uDE99 '+v;g.strokeText(t,R-16,10);g.fillStyle=jp?'#7a3a00':'#fff';g.fillText(t,R-16,10);g.restore()});
  g.beginPath();g.arc(R,R,22,0,7);g.fillStyle='#16191c';g.fill();g.strokeStyle='#f2a33a';g.lineWidth=5;g.stroke()}
 function wconf(n,big){const o=$('endo'),cols=['#f2a33a','#3fb7ad','#d9533c','#9b6ae0','#ffffff','#ffd27a'];for(let i=0;i<n;i++){const d=document.createElement('i');d.className='wc';const a=Math.random()*6.283,v=200+Math.random()*(big?900:520);d.style.cssText='background:'+cols[i%6]+';--dx:'+(Math.cos(a)*v|0)+'px;--dy:'+((Math.sin(a)*v-300)|0)+'px;--r:'+((Math.random()*900-450)|0)+'deg;width:'+(6+Math.random()*8|0)+'px;height:'+(10+Math.random()*10|0)+'px;animation-duration:'+(1.4+Math.random()*1.4)+'s';o.appendChild(d);setTimeout(()=>d.remove(),3200)}}
 function spinWheel(){const cv=$('whl');if(!cv||!WH)return;drawWheel(cv);const seg=30,tgt=360*6+360-(WH.i+.5)*seg,dur=6800,t0=performance.now(),key=spinWheel.k=(spinWheel.k||0)+1;let last=-1,lt=0;
  (function f(){const c=$('whl');if(spinWheel.k!==key||!c)return;const p=Math.min(1,(performance.now()-t0)/dur),a=tgt*(1-Math.pow(1-p,4));c.style.transform='rotate('+a+'deg)';const sl=Math.floor(a/seg);if(sl!==last){last=sl;if(performance.now()-lt>45){lt=performance.now();tone(420+(sl%12)*55,0,.05,'square',.08);noise(.03,.1,3000,800)}}if(p<1)requestAnimationFrame(f);else wheelWin()})()}
 function wheelWin(){const o=$('endo'),r=$('wres');if(!r||!WH)return;const v=WV[WH.i],jp=v>=50000,nm=NP[WH.id]?NP[WH.id].name:'???';
- r.style.color=jp?'#ffd27a':'#7be0a0';r.classList.remove('pop');void r.offsetWidth;r.classList.add('pop');r.textContent=(jp?'\uD83D\uDCB0 JACKPOT! ':'')+nm+' WON '+v.toLocaleString()+(jp?' \uD83E\uDE99 COINS!!!':' \uD83D\uDD37 TOKENS!');
- if(WH.id===me&&WH.n>1&&wheelWin.p!==WH.t){wheelWin.p=WH.t;if(jp)S.coins+=v;else S.tok+=v;save()}
+ r.style.color=jp?'#ffd27a':'#7be0a0';r.classList.remove('pop');void r.offsetWidth;r.classList.add('pop');r.textContent=(jp?'\uD83D\uDCB0 JACKPOT! ':'')+nm+' WON '+v.toLocaleString()+(jp?' \uD83E\uDE99 COINS!!!':' \uD83E\uDE99 COINS!');
+ if(WH.id===me&&WH.n>1&&wheelWin.p!==WH.t){wheelWin.p=WH.t;S.coins+=v;save()}
  dop.fan(jp?3:v>=500?2:1);wconf(jp?260:v>=500?120:70,jp);flash(jp?'#ffd27a':'#7be0a0',jp?.7:.3);o.classList.remove('shk');void o.offsetWidth;o.classList.add('shk');
  if(jp){const h=$('whh');if(h)h.textContent='\uD83D\uDCB0\uD83D\uDCB0 ULTIMATE JACKPOT \uD83D\uDCB0\uD83D\uDCB0';[400,800,1200,1600].forEach(t=>setTimeout(()=>{wconf(120,1);flash('#ffffff',.4);dop.up()},t))}else if(v>=500)setTimeout(()=>{wconf(60,0);dop.up()},500)}
 /* ---------- ONLINE COUNT (first visitor becomes the hub, everyone else reports to it) ---------- */
 (function(){const set=v=>{const e=$('onc');if(e)e.textContent=v};
  function client(){let p,d=0;try{p=new Peer(getPeerOptions())}catch(e){return}const again=()=>{if(d)return;d=1;try{p.destroy()}catch(e){}set(1);setTimeout(hub,1500+Math.random()*2500)};
-  p.on('open',()=>{const c=p.connect('arenarecoil-hub',{reliable:true});c.on('data',m=>{if(m&&m.n)set(m.n)});c.on('close',again)});
+  p.on('open',()=>{const c=p.connect('arenarecoil-hub',{reliable:true});HUBC=c;c.on('data',m=>{if(m&&m.n)set(m.n);if(m&&m.L)LBL=m.L});c.on('close',()=>{HUBC=null;again()})});
   p.on('error',e=>{if(e.type!='unavailable-id')again()})}
- function hub(){let p;try{p=new Peer('arenarecoil-hub',getPeerOptions())}catch(e){return}const cs=new Set(),push=()=>{const v=cs.size+1;set(v);cs.forEach(c=>c.open&&c.send({n:v}))};
-  p.on('open',()=>{setInterval(push,2000)});p.on('connection',c=>{cs.add(c);c.on('open',push);c.on('close',()=>{cs.delete(c);push()});c.on('error',()=>cs.delete(c))});
+ function hub(){let p;try{p=new Peer('arenarecoil-hub',getPeerOptions())}catch(e){return}const cs=new Set(),push=()=>{const v=cs.size+1;set(v);const L=lobbyList();LBL=L;cs.forEach(c=>c.open&&c.send({n:v,L}))};
+  p.on('open',()=>{HUBME=true;setInterval(push,2000)});p.on('connection',c=>{cs.add(c);c.on('open',push);c.on('data',m=>{if(m&&m.t=='reg')hreg(m.i,c.peer)});c.on('close',()=>{cs.delete(c);for(const k in LBS)if(LBS[k].cid===c.peer)delete LBS[k];push()});c.on('error',()=>cs.delete(c))});
   p.on('error',e=>{try{p.destroy()}catch(x){}if(e.type=='unavailable-id')client();else setTimeout(hub,5000)})}
  if(typeof Peer!='undefined')hub()})();
 </script></body></html>
+
