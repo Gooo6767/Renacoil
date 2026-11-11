@@ -394,10 +394,8 @@ function closeBox(){show('shop')}
 
 /* ---------- MULTIPLAYER (Global WebRTC with STUN + Render Signaling Support) ---------- */
 const SIGNALING_HOST = 'arenarecoil-server.onrender.com';
-/* TURN relays are what make joins work between different networks (phones, school/work wifi, CGNAT).
-   Free public relay below works for testing; for reliable play make a free account at metered.ca,
-   copy your TURN username/credential into MY_TURN and it will be used first. */
-const MY_TURN=[/* { urls:'turn:YOUR-APP.metered.live:443?transport=tcp', username:'YOUR_USER', credential:'YOUR_PASS' }, */];
+const MY_TURN = [];
+
 function getPeerOptions(){
   return {
     host: SIGNALING_HOST, port: 443, path: '/peerjs', secure: true,
@@ -407,16 +405,39 @@ function getPeerOptions(){
         ...MY_TURN,
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun.cloudflare.com:3478' },
-        { urls: 'turn:staticauth.openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turn:staticauth.openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turn:staticauth.openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turns:staticauth.openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+        { urls: 'stun:stun.cloudflare.com:3478' }
       ]
     }
   };
+}
+
+let isServerAwake = false;
+async function ensureServerAwake(statusMsg = "Connecting to server...") {
+  if (isServerAwake) return true;
+  const warn = $('nmw');
+  if (warn) {
+    warn.style.display = 'block';
+    warn.style.color = '#3fe0d0';
+    warn.textContent = '⏳ ' + statusMsg + ' (Takes ~30-45s if Render is sleeping)';
+  }
+  
+  for (let i = 0; i < 20; i++) {
+    try {
+      const res = await fetch('https://' + SIGNALING_HOST + '/ping', { cache: 'no-store' });
+      if (res.ok) {
+        isServerAwake = true;
+        if (warn) warn.style.display = 'none';
+        return true;
+      }
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  
+  if (warn) {
+    warn.style.color = '#ff7a6a';
+    warn.textContent = '⚠️ Could not wake server. Refresh or check Render dashboard.';
+  }
+  return false;
 }
 
 let LBL=[],lpriv=0;
@@ -426,18 +447,25 @@ function regLobby(){
     body:JSON.stringify({code:lcode,host:NP[me]?NP[me].name:'Host',num:Object.keys(NP).length,phase:phase,priv:lpriv})}).catch(()=>{});
 }
 async function fetchLobbies(){
-  try{const r=await fetch('https://'+SIGNALING_HOST+'/api/lobbies');if(!r.ok)return;const d=await r.json();
+  try{
+    const r=await fetch('https://'+SIGNALING_HOST+'/api/lobbies');
+    if(!r.ok)return;
+    const d=await r.json();
+    isServerAwake = true;
     if(d.online!==undefined){const o=$('onc');if(o)o.textContent=d.online}
-    if(d.lobbies){LBL=d.lobbies;renderBrowser()}}catch(e){}
+    if(d.lobbies){LBL=d.lobbies;renderBrowser()}
+  }catch(e){}
 }
-setInterval(fetchLobbies,2500);fetchLobbies();
+setInterval(fetchLobbies,3000);fetchLobbies();
+
 function privUI(){document.querySelectorAll('.lpv').forEach(b=>b.textContent=lpriv?'🔒 PRIVATE':'🌐 PUBLIC');const t=$('lpt');if(t)t.textContent=lpriv?'PRIVATE · CODE ONLY':'PUBLIC · IN BROWSER'}
 function togPriv(){sfx.click();lpriv=lpriv?0:1;privUI();regLobby()}
 function renderBrowser(){const e=$('lbl');if(!e||!$('lobby').classList.contains('on')||$('lj').style.display=='none')return;
  const h=LBL.length?LBL.map(x=>{const c=String(x.c).replace(/[^A-Z0-9]/g,''),p=x.ph=='play'?'ROUND LIVE':x.ph=='end'?'BETWEEN ROUNDS':'WAITING';return `<div class="lrow"><span class="lrn">${clean(x.h)}</span><span class="lrs">${x.n}/20 · ${p}</span><button class="btn s t" onclick="joinLobby('${c}')">JOIN</button></div>`}).join(''):'<div class="hint2">No open lobbies right now. Host one!</div>';
  if(e._h!==h){e._h=h;e.innerHTML=h}}
 setInterval(renderBrowser,1000);
-const SPS=[];const SPS_OLD=[[-35,28,24],[-25,28,16],[4,36,-24],[-6,36,-28],[30,24,14],[35,24,22],[-55,16,40],[45,16,-36],[55,16,40]];
+
+const SPS=[];
 let WH=null,mp=0,host=0,peer,conns={},hostConn,me='',NP={},ST={},phase='lobby',tl=0,tlEnd=0,t0=0,eoff=0,inRound=0,lock=0,tabOn=0,lastSt=0,hc=0,lcode='';
 const r2=n=>Math.round(n*100)/100,cl=(n,a)=>Math.max(-a,Math.min(a,+n||0)),clean=x=>String(x).replace(/[^\w .\-]/g,'').slice(0,14).trim()||'Player',fmt=x=>Math.floor(x/60)+':'+String(Math.floor(x%60)).padStart(2,'0');
 function getName(){const v=clean($('nm').value);S.name=v;save();return v}
@@ -451,33 +479,69 @@ function tx(m){if(!host){hostConn&&hostConn.open&&hostConn.send(m);return}
 function setPhase(ph){const o=phase;phase=ph;t0=Date.now();if(ph=='play'){tl=300;for(const id in NP)NP[id].k=NP[id].d=0}if(ph=='end'){tl=20;const L=sorted();WH={id:L[0]?L[0][0]:null,i:pickWheel(),n:L.length,t:Date.now()}}bcM();applyPhase(ph,o);regLobby()}
 function hTick(){const now=Date.now();if(phase=='play'){tl=300-(now-t0)/1000;if(tl<=0)setPhase('end')}else if(phase=='end'){tl=20-(now-t0)/1000;if(tl<=0)setPhase('play')}
  const el=(performance.now()-eoff)/1000;for(const id in conns){const c=conns[id];if(!c.open)continue;const o={};for(const k in ST)if(k!==id)o[k]=ST[k];c.send({t:'S',s:o,el})}applyS(ST);if(++hc%15==0)bcM()}
-function hostLobby(){
- if(needName())return;mp=1;host=1;const nm=getName();
+
+async function hostLobby(){
+ if(needName())return;
+ const ready = await ensureServerAwake("Waking server to create lobby...");
+ if(!ready) return;
+
+ mp=1;host=1;const nm=getName();
  lcode=Math.random().toString(36).slice(2,6).toUpperCase();
  if(peer){try{peer.destroy()}catch(e){}}
+ 
  peer=new Peer('arenarecoil-'+lcode,getPeerOptions());
  peer.on('open',id=>{me=id;NP={};NP[me]={name:nm,skin:S.skin,k:0,d:0};eoff=performance.now();setInterval(hTick,66);setInterval(regLobby,3000);regLobby();showLobby()});
- peer.on('connection',c=>{conns[c.peer]=c;c.on('data',m=>hData(c,m));
+ peer.on('connection',c=>{
+  conns[c.peer]=c;
+  c.on('data',m=>hData(c,m));
   c.on('close',()=>{delete conns[c.peer];dropR(NP[c.peer]);delete NP[c.peer];delete ST[c.peer];bcM();regLobby()});
   c.on('error',()=>{});
-  if(Object.keys(NP).length>=20)c.on('open',()=>{c.send({t:'full'});setTimeout(()=>c.close(),300)})});
- /* if the signaling socket drops (Render idles/restarts) the lobby would become un-joinable: reconnect it */
+  if(Object.keys(NP).length>=20)c.on('open',()=>{c.send({t:'full'});setTimeout(()=>c.close(),300)})
+ });
  peer.on('disconnected',()=>{try{peer.reconnect()}catch(e){}});
- peer.on('error',e=>{if(e.type=='network'||e.type=='server-error'||e.type=='socket-error'||e.type=='socket-closed'){try{peer.reconnect()}catch(x){}return}alert('Host network error: '+e.type);location.reload()})}
-function joinLobby(code){
- if(needName())return;mp=1;host=0;const nm=getName();
- lcode=String(code).toUpperCase().replace(/[^A-Z0-9]/g,'');if(!lcode){alert('Enter a lobby code');return}
+ peer.on('error',e=>{
+  console.warn("Host peer error:", e.type);
+  if(e.type=='network'||e.type=='server-error'||e.type=='socket-error'||e.type=='socket-closed'){
+    try{peer.reconnect()}catch(x){}
+    return;
+  }
+  alert('Host connection notification: '+e.type);
+ });
+}
+
+async function joinLobby(code){
+ if(needName())return;
+ lcode=String(code).toUpperCase().replace(/[^A-Z0-9]/g,'');
+ if(!lcode){alert('Enter a lobby code');return}
+
+ const ready = await ensureServerAwake("Waking server to connect...");
+ if(!ready) return;
+
+ mp=1;host=0;const nm=getName();
  if(peer){try{peer.destroy()}catch(e){}}
- peer=new Peer(getPeerOptions());let ok=0,done=0;
+ peer=new Peer(getPeerOptions());
+ let ok=0,done=0;
  const fail=t=>{if(done||ok)return;done=1;try{peer.destroy()}catch(e){}mp=0;alert(t)};
- peer.on('open',id=>{me=id;hostConn=peer.connect('arenarecoil-'+lcode,{reliable:true});
+ 
+ peer.on('open',id=>{
+  me=id;
+  hostConn=peer.connect('arenarecoil-'+lcode,{reliable:true});
   const up=()=>{if(ok||done)return;ok=1;hostConn.send({t:'hi',name:nm,skin:S.skin});showLobby()};
   if(hostConn.open)up();else hostConn.on('open',up);
-  hostConn.on('data',onMsg);hostConn.on('error',e=>fail('Connection error: '+(e.type||e)));
-  hostConn.on('close',()=>{if(ok){alert('Lobby closed');location.reload()}});
-  setTimeout(()=>fail('Could not connect to the host.\n\nThe lobby may have closed, or your network blocks direct connections (try another network / ask the host to rejoin).'),20000)});
+  hostConn.on('data',onMsg);
+  hostConn.on('error',e=>fail('Connection error: '+(e.type||e)));
+  hostConn.on('close',()=>{if(ok){alert('Host closed or disconnected.');show('lobby')}});
+  setTimeout(()=>fail('Could not reach the host ('+lcode+'). The host may have quit, or Wi-Fi firewall blocked direct P2P.'), 35000);
+ });
  peer.on('disconnected',()=>{if(!ok&&!done){try{peer.reconnect()}catch(e){}}});
- peer.on('error',e=>{if(e.type=='peer-unavailable')fail('Lobby not found. The host left or the code is wrong.');else if(e.type=='network'||e.type=='socket-error'||e.type=='socket-closed'||e.type=='server-error')return;else fail('Could not join ('+e.type+')')})}
+ peer.on('error',e=>{
+  console.warn("Join peer error:", e.type);
+  if(e.type=='peer-unavailable')fail('Lobby not found. The host left or the code is wrong.');
+  else if(e.type=='network'||e.type=='socket-error'||e.type=='socket-closed'||e.type=='server-error')return;
+  else fail('Could not join ('+e.type+')');
+ });
+}
+
 function hData(c,m){if(m.t=='hi'){NP[c.peer]={name:clean(m.name),skin:SKINS[m.skin]?+m.skin:0,k:0,d:0};bcM();return}if(!NP[c.peer])return;
  if(m.t=='st'){if(Array.isArray(m.s))ST[c.peer]=m.s}else if(m.t=='f')bc(m,c.peer),visShot(m);else if(m.t=='hit'){if(m.to===me)onMsg(m);else conns[m.to]&&conns[m.to].send(m)}else if(m.t=='kill')scoreKill(m.k===c.peer?null:m.k,c.peer);else if(m.t=='sk'){dropR(NP[c.peer]);NP[c.peer].skin=SKINS[m.skin]?+m.skin:0;bcM()}}
 function scoreKill(k,v){if(phase!='play'||!NP[v])return;NP[v].d++;if(k&&k!==v&&NP[k])NP[k].k++;const km={t:'k',v,k,r:roster()};bc(km);onMsg(km)}
@@ -486,7 +550,7 @@ function onMsg(m){const t=m.t;
  if(t=='S'){eoff=eoff?eoff+((performance.now()-m.el*1000)-eoff)*.1:performance.now()-m.el*1000;applyS(m.s)}
  else if(t=='M'){setRoster(m.r);tlEnd=performance.now()+m.tl*1000;if(m.wh)WH=m.wh;if(m.ph!=phase)applyPhase(m.ph,phase)}
  else if(t=='k'){setRoster(m.r);const a=NP[m.k],b=NP[m.v],kl=a&&m.k!==m.v;feed((kl?a.name+' ▸ ':'')+(b?b.name:'?')+(kl?'':' fell'));if(kl&&m.k===me&&inRound){koFx();S.coins+=25;save()}}
- else if(t=='f')visShot(m);else if(t=='hit'&&m.to===me)gotHit(m);else if(t=='full'){alert('Lobby is full');location.reload()}}
+ else if(t=='f')visShot(m);else if(t=='hit'&&m.to===me)gotHit(m);else if(t=='full'){alert('Lobby is full');show('lobby')}}
 function mkRemote(id){const r=NP[id],e={net:id,x:0,y:40,z:0,tx:0,ty:40,tz:0,vx:0,vy:0,vz:0,yaw:0,hw:.4,h:1.8,ground:null,ch:mkChar(SKINS[r.skin].c,0,r.skin),t:0,ph:0,dashT:0,hitT:0,shT:0,dm:1,dead:0,hp:100,mx:100};glowSk(e.ch,SKINS[r.skin]);
  const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');g.font='40px "Bebas Neue",Impact,sans-serif';g.textAlign='center';g.lineWidth=6;g.strokeStyle='#000';g.fillStyle='#fff';g.strokeText(r.name,128,46);g.fillText(r.name,128,46);
  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,transparent:true}));sp.scale.set(2.6,.65,1);sp.position.y=2.9;sp.renderOrder=9;e.ch.root.add(sp);dummies.push(e);r.r=e;return e}
