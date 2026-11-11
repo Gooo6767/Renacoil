@@ -366,7 +366,7 @@ function renderSkins(){const g=$('skg');g.innerHTML='';SKINS.forEach((k,i)=>{con
 
 /* box opening */
 let bTier,bChance,bBusy,bFresh;
-function setBox(){$('rays').style.setProperty('--c',RC[bTier]);$('bx').style.setProperty('--c',RC[bTier]);$('pips').innerHTML=[0,1,2,3].map(i=>`<span class="pip ${i<bChance?'':'u'}"></span>`).join('')}
+function setBox(){$('rays').style.setProperty('--c',RC[bTier]);$('bx').style.setProperty('--c',RC[bTier]);$('pips').innerHTML=[0,1,2].map(i=>`<span class="pip ${i<bChance?'':'u'}"></span>`).join('')}
 let bTap=0;
 function conf(n,cols,pw=1){const bo=$('boxo');for(let i=0;i<n;i++){const d=document.createElement('i');d.className='cf';const a=Math.random()*6.283,v=(160+Math.random()*420)*pw;d.style.cssText=`background:${cols[i%cols.length]};--dx:${Math.cos(a)*v|0}px;--dy:${(Math.sin(a)*v-220*pw)|0}px;--r:${(Math.random()*900-450)|0}deg;width:${6+Math.random()*8|0}px;height:${10+Math.random()*10|0}px;animation-duration:${1.1+Math.random()*1.1}s`;bo.appendChild(d);setTimeout(()=>d.remove(),2400)}}
 function shk(){const b=$('boxo');b.classList.remove('shk');void b.offsetWidth;b.classList.add('shk')}
