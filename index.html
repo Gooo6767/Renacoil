@@ -223,7 +223,7 @@ h3 small{font:12px Oswald;color:#8d949a;letter-spacing:0;margin-left:8px}
 <div class="scr" id="endo" style="background:rgba(10,12,14,.82);z-index:45"></div>
 <div id="tab" class="panel" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:35;min-width:min(420px,90vw)"></div>
 <div id="mpb" style="display:none;position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:60;font:18px var(--f);letter-spacing:.08em;background:#171c28e0;border:2px solid #3a4660;padding:4px 12px"><span id="mpt"></span><button class="btn s t" id="mpj" onclick="startGame()">JOIN ROUND</button></div>
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 const $=id=>document.getElementById(id),rnd=()=>Math.random()*2-1,V=THREE.Vector3;
@@ -394,34 +394,18 @@ function closeBox(){show('shop')}
 
 /* ---------- MULTIPLAYER (Global WebRTC with STUN + Render Signaling Support) ---------- */
 const SIGNALING_HOST = 'arenarecoil-server.onrender.com';
-const MY_TURN = [];
-
-function getPeerOptions(){
-  return {
-    host: SIGNALING_HOST, port: 443, path: '/peerjs', secure: true,
-    config: {
-      iceCandidatePoolSize: 4,
-      iceServers: [
-        ...MY_TURN,
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun.cloudflare.com:3478' }
-      ]
-    }
-  };
-}
+let socket = null, hostInterval = null;
 
 let isServerAwake = false;
-async function ensureServerAwake(statusMsg = "Connecting to server...") {
+async function ensureServerAwake(statusMsg = "Connecting...") {
   if (isServerAwake) return true;
   const warn = $('nmw');
   if (warn) {
     warn.style.display = 'block';
     warn.style.color = '#3fe0d0';
-    warn.textContent = '⏳ ' + statusMsg + ' (Takes ~30-45s if Render is sleeping)';
+    warn.textContent = '⏳ ' + statusMsg + ' (Connecting to server...)';
   }
-  
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 15; i++) {
     try {
       const res = await fetch('https://' + SIGNALING_HOST + '/ping', { cache: 'no-store' });
       if (res.ok) {
@@ -430,22 +414,21 @@ async function ensureServerAwake(statusMsg = "Connecting to server...") {
         return true;
       }
     } catch (e) {}
-    await new Promise(r => setTimeout(r, 2500));
+    await new Promise(r => setTimeout(r, 2000));
   }
-  
   if (warn) {
     warn.style.color = '#ff7a6a';
-    warn.textContent = '⚠️ Could not wake server. Refresh or check Render dashboard.';
+    warn.textContent = '⚠️ Could not connect to server. Check Render dashboard.';
   }
   return false;
 }
 
 let LBL=[],lpriv=0;
 function regLobby(){
-  if(!mp||!host||!lcode)return;
-  fetch('https://'+SIGNALING_HOST+'/api/register-lobby',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({code:lcode,host:NP[me]?NP[me].name:'Host',num:Object.keys(NP).length,phase:phase,priv:lpriv})}).catch(()=>{});
+  if(!mp||!host||!socket||!socket.connected) return;
+  socket.emit('update-lobby', { priv: lpriv, num: Object.keys(NP).length, phase });
 }
+
 async function fetchLobbies(){
   try{
     const r=await fetch('https://'+SIGNALING_HOST+'/api/lobbies');
@@ -466,84 +449,152 @@ function renderBrowser(){const e=$('lbl');if(!e||!$('lobby').classList.contains(
 setInterval(renderBrowser,1000);
 
 const SPS=[];
-let WH=null,mp=0,host=0,peer,conns={},hostConn,me='',NP={},ST={},phase='lobby',tl=0,tlEnd=0,t0=0,eoff=0,inRound=0,lock=0,tabOn=0,lastSt=0,hc=0,lcode='';
+let WH=null,mp=0,host=0,me='',NP={},ST={},phase='lobby',tl=0,tlEnd=0,t0=0,eoff=0,inRound=0,lock=0,tabOn=0,lastSt=0,hc=0,lcode='';
 const r2=n=>Math.round(n*100)/100,cl=(n,a)=>Math.max(-a,Math.min(a,+n||0)),clean=x=>String(x).replace(/[^\w .\-]/g,'').slice(0,14).trim()||'Player',fmt=x=>Math.floor(x/60)+':'+String(Math.floor(x%60)).padStart(2,'0');
 function getName(){const v=clean($('nm').value);S.name=v;save();return v}
 function feed(t){const d=document.createElement('div');d.textContent=t;d.style.cssText='font:18px var(--f);letter-spacing:.06em;text-shadow:2px 2px 0 #000;margin:2px';$('feed').appendChild(d);setTimeout(()=>d.remove(),4500)}
 const roster=()=>Object.entries(NP).map(([id,p])=>[id,p.name,p.skin,p.k,p.d]);
 function dropR(p){if(p&&p.r&&sc){sc.remove(p.r.ch.root);const i=dummies.indexOf(p.r);if(i>=0)dummies.splice(i,1)}if(p)p.r=null}
-function bc(m,ex){for(const id in conns)if(id!==ex&&conns[id].open)conns[id].send(m)}
-function bcM(){tlEnd=performance.now()+tl*1000;bc({t:'M',ph:phase,tl,r:roster(),wh:phase=='end'?WH:null});renderLobby()}
-function tx(m){if(!host){hostConn&&hostConn.open&&hostConn.send(m);return}
- if(m.t=='f')bc(m);else if(m.t=='hit'){if(m.to===me)onMsg(m);else conns[m.to]&&conns[m.to].send(m)}else if(m.t=='kill')scoreKill(m.k,m.v);else if(m.t=='st')ST[me]=m.s;else if(m.t=='sk'&&NP[me]){dropR(NP[me]);NP[me].skin=m.skin;bcM()}}
-function setPhase(ph){const o=phase;phase=ph;t0=Date.now();if(ph=='play'){tl=300;for(const id in NP)NP[id].k=NP[id].d=0}if(ph=='end'){tl=20;const L=sorted();WH={id:L[0]?L[0][0]:null,i:pickWheel(),n:L.length,t:Date.now()}}bcM();applyPhase(ph,o);regLobby()}
-function hTick(){const now=Date.now();if(phase=='play'){tl=300-(now-t0)/1000;if(tl<=0)setPhase('end')}else if(phase=='end'){tl=20-(now-t0)/1000;if(tl<=0)setPhase('play')}
- const el=(performance.now()-eoff)/1000;for(const id in conns){const c=conns[id];if(!c.open)continue;const o={};for(const k in ST)if(k!==id)o[k]=ST[k];c.send({t:'S',s:o,el})}applyS(ST);if(++hc%15==0)bcM()}
 
-async function hostLobby(){
- if(needName())return;
- const ready = await ensureServerAwake("Waking server to create lobby...");
- if(!ready) return;
+function bc(m){
+  if(socket && socket.connected) socket.emit('broadcast', m);
+}
 
- mp=1;host=1;const nm=getName();
- lcode=Math.random().toString(36).slice(2,6).toUpperCase();
- if(peer){try{peer.destroy()}catch(e){}}
- 
- peer=new Peer('arenarecoil-'+lcode,getPeerOptions());
- peer.on('open',id=>{me=id;NP={};NP[me]={name:nm,skin:S.skin,k:0,d:0};eoff=performance.now();setInterval(hTick,66);setInterval(regLobby,3000);regLobby();showLobby()});
- peer.on('connection',c=>{
-  conns[c.peer]=c;
-  c.on('data',m=>hData(c,m));
-  c.on('close',()=>{delete conns[c.peer];dropR(NP[c.peer]);delete NP[c.peer];delete ST[c.peer];bcM();regLobby()});
-  c.on('error',()=>{});
-  if(Object.keys(NP).length>=20)c.on('open',()=>{c.send({t:'full'});setTimeout(()=>c.close(),300)})
- });
- peer.on('disconnected',()=>{try{peer.reconnect()}catch(e){}});
- peer.on('error',e=>{
-  console.warn("Host peer error:", e.type);
-  if(e.type=='network'||e.type=='server-error'||e.type=='socket-error'||e.type=='socket-closed'){
-    try{peer.reconnect()}catch(x){}
+function bcM(){
+  tlEnd=performance.now()+tl*1000;
+  bc({t:'M',ph:phase,tl,r:roster(),wh:phase=='end'?WH:null});
+  renderLobby();
+  if(socket && host) socket.emit('update-lobby', { phase, num: Object.keys(NP).length });
+}
+
+function tx(m){
+  if(!host){
+    if(socket && socket.connected) socket.emit('to-host', m);
     return;
   }
-  alert('Host connection notification: '+e.type);
- });
+  if(m.t=='f') bc(m);
+  else if(m.t=='hit'){
+    if(m.to===me) onMsg(m);
+    else if(socket && socket.connected) socket.emit('to-client', { to: m.to, msg: m });
+  }
+  else if(m.t=='kill') scoreKill(m.k, m.v);
+  else if(m.t=='st') ST[me]=m.s;
+  else if(m.t=='sk'&&NP[me]){dropR(NP[me]);NP[me].skin=m.skin;bcM()}
+}
+
+function setPhase(ph){const o=phase;phase=ph;t0=Date.now();if(ph=='play'){tl=300;for(const id in NP)NP[id].k=NP[id].d=0}if(ph=='end'){tl=20;const L=sorted();WH={id:L[0]?L[0][0]:null,i:pickWheel(),n:L.length,t:Date.now()}}bcM();applyPhase(ph,o);regLobby()}
+
+function hTick(){
+  const now=Date.now();
+  if(phase=='play'){tl=300-(now-t0)/1000;if(tl<=0)setPhase('end')}
+  else if(phase=='end'){tl=20-(now-t0)/1000;if(tl<=0)setPhase('play')}
+  const el=(performance.now()-eoff)/1000;
+  if(socket && socket.connected) {
+    socket.emit('broadcast', { t: 'S', s: ST, el });
+  }
+  applyS(ST);
+  if(++hc%15==0) bcM();
+}
+
+async function hostLobby(){
+  if(needName())return;
+  const ready = await ensureServerAwake("Starting server...");
+  if(!ready) return;
+
+  mp=1;host=1;const nm=getName();
+  lcode=Math.random().toString(36).slice(2,6).toUpperCase();
+  if(socket){try{socket.disconnect()}catch(e){}}
+  
+  socket = io('https://' + SIGNALING_HOST, { transports: ['websocket', 'polling'] });
+  
+  socket.on('connect', () => {
+    me = socket.id;
+    socket.emit('host-lobby', { code: lcode, name: nm, priv: lpriv });
+  });
+
+  socket.on('hosted', () => {
+    NP = {};
+    NP[me] = { name: nm, skin: S.skin, k: 0, d: 0 };
+    eoff = performance.now();
+    if(hostInterval) clearInterval(hostInterval);
+    hostInterval = setInterval(hTick, 66);
+    showLobby();
+  });
+
+  socket.on('from-client', ({ from, msg }) => {
+    hData(from, msg);
+  });
+
+  socket.on('client-disconnected', ({ id }) => {
+    dropR(NP[id]);
+    delete NP[id];
+    delete ST[id];
+    bcM();
+  });
+
+  socket.on('connect_error', (e) => {
+    alert('Connection issue: ' + e.message);
+  });
 }
 
 async function joinLobby(code){
- if(needName())return;
- lcode=String(code).toUpperCase().replace(/[^A-Z0-9]/g,'');
- if(!lcode){alert('Enter a lobby code');return}
+  if(needName())return;
+  lcode=String(code).toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!lcode){alert('Enter a lobby code');return}
 
- const ready = await ensureServerAwake("Waking server to connect...");
- if(!ready) return;
+  const ready = await ensureServerAwake("Connecting...");
+  if(!ready) return;
 
- mp=1;host=0;const nm=getName();
- if(peer){try{peer.destroy()}catch(e){}}
- peer=new Peer(getPeerOptions());
- let ok=0,done=0;
- const fail=t=>{if(done||ok)return;done=1;try{peer.destroy()}catch(e){}mp=0;alert(t)};
- 
- peer.on('open',id=>{
-  me=id;
-  hostConn=peer.connect('arenarecoil-'+lcode,{reliable:true});
-  const up=()=>{if(ok||done)return;ok=1;hostConn.send({t:'hi',name:nm,skin:S.skin});showLobby()};
-  if(hostConn.open)up();else hostConn.on('open',up);
-  hostConn.on('data',onMsg);
-  hostConn.on('error',e=>fail('Connection error: '+(e.type||e)));
-  hostConn.on('close',()=>{if(ok){alert('Host closed or disconnected.');show('lobby')}});
-  setTimeout(()=>fail('Could not reach the host ('+lcode+'). The host may have quit, or Wi-Fi firewall blocked direct P2P.'), 35000);
- });
- peer.on('disconnected',()=>{if(!ok&&!done){try{peer.reconnect()}catch(e){}}});
- peer.on('error',e=>{
-  console.warn("Join peer error:", e.type);
-  if(e.type=='peer-unavailable')fail('Lobby not found. The host left or the code is wrong.');
-  else if(e.type=='network'||e.type=='socket-error'||e.type=='socket-closed'||e.type=='server-error')return;
-  else fail('Could not join ('+e.type+')');
- });
+  mp=1;host=0;const nm=getName();
+  if(socket){try{socket.disconnect()}catch(e){}}
+  
+  socket = io('https://' + SIGNALING_HOST, { transports: ['websocket', 'polling'] });
+
+  socket.on('connect', () => {
+    me = socket.id;
+    socket.emit('join-lobby', { code: lcode, name: nm, skin: S.skin });
+  });
+
+  socket.on('joined', () => {
+    showLobby();
+  });
+
+  socket.on('from-host', onMsg);
+
+  socket.on('join-error', (msg) => {
+    alert(msg);
+  });
+
+  socket.on('promoted-to-host', () => {
+    host = 1;
+    feed('👑 Host left. You are now the host!');
+    if(hostInterval) clearInterval(hostInterval);
+    hostInterval = setInterval(hTick, 66);
+    renderLobby();
+  });
+
+  socket.on('connect_error', (e) => {
+    alert('Connection error: ' + e.message);
+  });
 }
 
-function hData(c,m){if(m.t=='hi'){NP[c.peer]={name:clean(m.name),skin:SKINS[m.skin]?+m.skin:0,k:0,d:0};bcM();return}if(!NP[c.peer])return;
- if(m.t=='st'){if(Array.isArray(m.s))ST[c.peer]=m.s}else if(m.t=='f')bc(m,c.peer),visShot(m);else if(m.t=='hit'){if(m.to===me)onMsg(m);else conns[m.to]&&conns[m.to].send(m)}else if(m.t=='kill')scoreKill(m.k===c.peer?null:m.k,c.peer);else if(m.t=='sk'){dropR(NP[c.peer]);NP[c.peer].skin=SKINS[m.skin]?+m.skin:0;bcM()}}
+function hData(fromId, m){
+  if(m.t=='hi'){
+    NP[fromId]={name:clean(m.name),skin:SKINS[m.skin]?+m.skin:0,k:0,d:0};
+    bcM();
+    return;
+  }
+  if(!NP[fromId])return;
+  if(m.t=='st'){if(Array.isArray(m.s))ST[fromId]=m.s}
+  else if(m.t=='f')bc(m),visShot(m);
+  else if(m.t=='hit'){
+    if(m.to===me)onMsg(m);
+    else if(socket && socket.connected) socket.emit('to-client', { to: m.to, msg: m });
+  }
+  else if(m.t=='kill')scoreKill(m.k===fromId?null:m.k,fromId);
+  else if(m.t=='sk'){dropR(NP[fromId]);NP[fromId].skin=SKINS[m.skin]?+m.skin:0;bcM()}
+}
+
 function scoreKill(k,v){if(phase!='play'||!NP[v])return;NP[v].d++;if(k&&k!==v&&NP[k])NP[k].k++;const km={t:'k',v,k,r:roster()};bc(km);onMsg(km)}
 function setRoster(r){const nn={};for(const [id,n,sk,k,d] of r){const o=NP[id];if(o&&o.skin!==sk)dropR(o);nn[id]=Object.assign(o||{},{name:n,skin:sk,k,d})}for(const id in NP)if(!nn[id])dropR(NP[id]);NP=nn;renderLobby();if(tabOn)drawTab()}
 function onMsg(m){const t=m.t;
@@ -570,7 +621,7 @@ function applyPhase(ph,old){phase=ph;renderLobby();
  if(ph=='play'){lock=0;$('endo').classList.remove('on');if(inRound){if(old!='play'){respawn();if(!document.pointerLockElement)$('pause').classList.add('on')}}else if(old=='lobby'&&$('lobby').classList.contains('on'))startGame()}
  if(ph=='end'){lock=1;keys={};mDown=false;if(inRound){document.exitPointerLock&&document.exitPointerLock();showEnd()}}}
 function showLobby(){privUI();$('lj').style.display='none';$('lr').style.display='';$('lcode').textContent=lcode;show('lobby');renderLobby()}
-function renderLobby(){if(!$('lpl')||!mp)return;$('lpl').innerHTML=Object.entries(NP).map(([id,p])=>`<div style="font:20px var(--f);padding:2px 8px">${id===(host?me:hostConn&&hostConn.peer)?'👑 ':''}${p.name}</div>`).join('');$('lstart').style.display=host&&phase=='lobby'?'':'none';const pv=$('lpv2');if(pv)pv.style.display=host?'':'none'}
+function renderLobby(){if(!$('lpl')||!mp)return;$('lpl').innerHTML=Object.entries(NP).map(([id,p])=>`<div style="font:20px var(--f);padding:2px 8px">${id===(host?me:'')?'👑 ':''}${p.name}</div>`).join('');$('lstart').style.display=host&&phase=='lobby'?'':'none';const pv=$('lpv2');if(pv)pv.style.display=host?'':'none'}
 addEventListener('keydown',e=>{if(e.code=='Tab'){e.preventDefault();if(mp&&playing){tabOn=1;drawTab();$('tab').style.display='block'}}});addEventListener('keyup',e=>{if(e.code=='Tab'){tabOn=0;$('tab').style.display='none'}});
 setInterval(()=>{const b=$('mpb');if(!mp||(playing&&inRound)){b.style.display='none';return}b.style.display='block';const l=Math.max(0,Math.ceil((tlEnd-performance.now())/1000));$('mpt').textContent='LOBBY '+lcode+' · '+(phase=='lobby'?'WAITING FOR HOST':phase=='play'?'ROUND LIVE '+fmt(l):'NEXT ROUND IN '+l)+' ';$('mpj').style.display=phase=='play'?'':'none';const c=$('ecd');if(c&&phase=='end')c.textContent='NEXT ROUND IN '+l},250);
 /* ---------- 3D GAME ---------- */
