@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>Arena Recoil</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -874,6 +875,15 @@ function building(cx,cz,hw,hd,col,nf,gy,ex){
   railPosts(lx,stairZ0,stairZ1,fy,fy+4,4,1);
   railBeam(rx,fy+4+railOffset,stairZ1,fy+8+railOffset,stairZ0);
   railPosts(rx,stairZ1,stairZ0,fy+4,fy+8,4,-1);
+  /* Invisible guard walls follow each flight so you stay on the treads and can't clip in from the side. Handrail height keeps shooting over them clear. */
+  {const NS=8,sgz=(stairZ1-stairZ0)/NS,hv=m=>{m.visible=false;return m};
+   for(let i=0;i<NS;i++){const za=stairZ0+i*sgz,zb=za+sgz,t0=i/NS,t1=(i+1)/NS,aL=fy+4*t0,aH=fy+4*t1,bL=fy+8-4*t1,bH=fy+8-4*t0;
+    hv(B(stairX0-.3,aL-.3,za,laneA0,aH+1.15,zb,st,true));
+    hv(B(laneA1,aL-.3,za,cx,aH+1.15,zb,st,true));
+    hv(B(cx,bL-.3,za,laneB0,bH+1.15,zb,st,true));
+    hv(B(laneB1,bL-.3,za,stairX1+.3,bH+1.15,zb,st,true))}
+   hv(B(stairX0-.3,fy+3.9,stairZ1,stairX0+.05,fy+5.15,stairZ1+3.2,st,true));
+   hv(B(stairX1-.05,fy+3.9,stairZ1,stairX1+.3,fy+5.15,stairZ1+3.2,st,true))}
   /* Interior partitions now sit beyond the stairwell's outside edges. */
   for(const p of px){const sg=[[zr0,dz[0]-2],[dz[0]+2,dz[1]-2],[dz[1]+2,z1-.8]];sg.forEach(q=>B(p,fy,q[0],p+.5,fy+7,q[1],br));dz.forEach(d=>B(p,fy+4.6,d-2,p+.5,fy+7,d+2,br))}
   /* Keep cover, shelves, and crates inside the side rooms, never in the stair corridor. */
@@ -1306,3 +1316,5 @@ function wheelWin(){const o=$('endo'),r=$('wres');if(!r||!WH)return;const v=WV[W
  dop.fan(jp?3:v>=500?2:1);wconf(jp?260:v>=500?120:70,jp);flash(jp?'#ffd27a':'#7be0a0',jp?.7:.3);o.classList.remove('shk');void o.offsetWidth;o.classList.add('shk');
  if(jp){const h=$('whh');if(h)h.textContent='\uD83D\uDCB0\uD83D\uDCB0 ULTIMATE JACKPOT \uD83D\uDCB0\uD83D\uDCB0';[400,800,1200,1600].forEach(t=>setTimeout(()=>{wconf(120,1);flash('#ffffff',.4);dop.up()},t))}else if(v>=500)setTimeout(()=>{wconf(60,0);dop.up()},500)}
 </script></body></html>
+
+
