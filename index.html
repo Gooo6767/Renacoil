@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>Arena Recoil</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -216,6 +215,32 @@ h3 small{font:12px Oswald;color:#8d949a;letter-spacing:0;margin-left:8px}
 #bhud .bh{font-size:12px;color:#ffe08a;letter-spacing:.14em;margin-bottom:3px;border-bottom:1px solid #ffe08a55;padding-bottom:2px;display:flex;justify-content:space-between;gap:10px}
 #bhud .br{display:flex;justify-content:space-between;gap:12px;color:#d8d3c4;padding:0 2px}
 #bhud .br.me{color:#ffe08a}#bhud .br.in b{color:#fff}
+/* Lobby-only text chat */
+#lchat{position:fixed;left:16px;top:50%;transform:translateY(-50%);z-index:82;width:min(290px,40vw);display:none;pointer-events:none;font-family:Oswald,system-ui,sans-serif}
+#lchat.open,#lchat.has-messages{display:block}
+#lchat.open{padding:8px;background:rgba(12,16,23,.94);border:2px solid #3a4660;box-shadow:0 8px 28px #0009;pointer-events:auto}
+#lchatHeader{display:none;font:17px var(--f);letter-spacing:.12em;color:var(--mus);border-bottom:1px solid #3a4660;padding:0 2px 5px;margin-bottom:6px}
+#lchat.open #lchatHeader{display:block}
+#lchatMsgs{display:flex;flex-direction:column;gap:4px;max-height:34vh;overflow:hidden}
+.lchat-line{background:rgba(12,16,23,.78);border-left:3px solid var(--teal);padding:4px 7px;box-shadow:0 2px 8px #0007;overflow-wrap:anywhere;animation:lchatIn .16s ease-out;transition:opacity .25s,transform .25s}
+.lchat-line.out{opacity:0;transform:translateX(-8px)}
+.lchat-name{display:block;color:var(--mus);font:14px/1.1 var(--f);letter-spacing:.07em}
+.lchat-text{display:block;color:#f1eee4;font:13px/1.25 Oswald,system-ui,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere}
+#lchatEntry{display:none;margin-top:7px}
+#lchat.open #lchatEntry{display:block}
+#lchatInput{display:block;width:100%;min-width:0;padding:7px 8px;background:#090d14;border:1px solid #68788d;color:#fff;font:15px Oswald,system-ui,sans-serif;outline:none;user-select:text;-webkit-user-select:text}
+#lchatInput:focus{border-color:var(--mus);box-shadow:0 0 0 1px var(--mus)}
+#lchatHint{font:10px Oswald;color:#9aa4ba;letter-spacing:.04em;margin-top:4px}
+@keyframes lchatIn{from{opacity:0;transform:translateX(-7px)}to{opacity:1;transform:none}}
+/* Small dev-code entry at the bottom of the shop */
+.dev-code{width:min(440px,100%);margin:12px auto 6px;padding:8px 10px;background:#151a24;border:1px solid #3a4660;display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap}
+.dev-code-label{font:16px var(--f);letter-spacing:.1em;color:#9aa4ba;white-space:nowrap}
+.dev-code-label small{display:block;font:10px Oswald;letter-spacing:0;color:#6f7b8c}
+.dev-code-entry{display:flex;gap:6px;align-items:center}
+#devCodeInput{width:170px;max-width:42vw;padding:5px 8px;background:#090d14;border:1px solid #536176;color:var(--cream);font:15px Oswald;letter-spacing:.06em;user-select:text;-webkit-user-select:text}
+#devCodeInput:focus{outline:1px solid var(--mus);border-color:var(--mus)}
+#devCodeStatus{width:100%;min-height:13px;text-align:center;font:11px Oswald;color:#9aa4ba}
+@media(max-width:600px){#lchat{left:7px;width:min(245px,62vw)}#lchatMsgs{max-height:30vh}.dev-code{gap:6px;padding:7px}}
 </style></head><body>
 
 <div class="coins" id="coins">🪙 0</div>
@@ -239,6 +264,7 @@ h3 small{font:12px Oswald;color:#8d949a;letter-spacing:0;margin-left:8px}
 <div class="scr sub" id="shop"><div class="panel"><h2>SHOP</h2>
  <p style="margin:0 0 10px;font-size:13px">Every box gives <b>3 chances</b> to upgrade its rarity (rare! better odds in pricier crates). Duplicates pay 🔷 tokens (Common 2 · Rare 3 · Epic 5 · Mythic 10 · Legendary 20) — save up for a <b>Fresh Chest</b> that never gives a duplicate.</p>
  <div class="row" id="boxes"></div>
+ <div class="dev-code"><div class="dev-code-label">DEV CODES<small>TESTING ONLY</small></div><div class="dev-code-entry"><input id="devCodeInput" type="text" maxlength="24" placeholder="ENTER CODE" autocomplete="off"><button class="btn s t" type="button" onclick="redeemDevCode()">REDEEM</button></div><div id="devCodeStatus" aria-live="polite"></div></div>
  <p style="text-align:center"><button class="btn s" onclick="show('menu')">◀ BACK</button></p></div></div>
 
 <div class="scr sub" id="skins"><div class="panel"><h2>SKINS</h2><div class="row hs" id="skg"></div>
@@ -252,6 +278,11 @@ h3 small{font:12px Oswald;color:#8d949a;letter-spacing:0;margin-left:8px}
 <div id="hud"><div id="cross"></div><div id="hm"></div><div id="msg"></div><div id="bhud"></div><div id="hc"></div><div id="ammo"></div><div id="mtime"></div><div id="feed"></div>
  <div class="bars">HEALTH<div class="bar" id="hb"><i></i></div>FIRE<div class="bar" id="rb"><i></i></div>DASH<div class="bar" id="db"><i></i></div></div>
  <div id="hint">WASD move · SPACE jump · SHIFT dash · E zoom · Q slide · CLICK fire · R reload · ESC pause</div></div>
+<div id="lchat" aria-label="Lobby chat">
+ <div id="lchatHeader">LOBBY CHAT</div>
+ <div id="lchatMsgs" aria-live="polite"></div>
+ <div id="lchatEntry"><input id="lchatInput" type="text" maxlength="120" placeholder="Message lobby..." autocomplete="off"><div id="lchatHint">ENTER TO SEND · ESC TO CLOSE</div></div>
+</div>
 <div class="scr" id="pause"><h1>PAUSED</h1><label style="font:18px var(--f);letter-spacing:.1em">MOUSE SENSITIVITY <input id="sens" type="range" min="8" max="50" value="23" oninput="sens=this.value/10000"></label><button class="btn" onclick="resume()">▶ RESUME</button><button class="btn" onclick="show('sett')">SETTINGS</button><button class="btn r" onclick="toMenu()">MENU</button></div>
 
 <div class="scr sub" id="lobby"><div class="panel" style="min-width:min(520px,94vw)"><h2>MULTIPLAYER</h2>
@@ -550,6 +581,21 @@ function renderShop(){const b=$('boxes');b.innerHTML='';BOXES.forEach(x=>{const 
  const k=document.createElement('button');k.className='btn s';k.textContent='🪙 '+x.p;k.onclick=()=>{if(S.coins<x.p){sfx.hit();return}S.coins-=x.p;save();openBox(x.t,0,x.u)};c.appendChild(k);b.appendChild(c)});
  const c=document.createElement('div');c.className='card';c.style.setProperty('--rc','#3fb7ad');c.style.cursor='default';c.innerHTML=`<div style="font-size:48px">🎁</div><b>Fresh Chest</b>Guaranteed NEW part<br>You have 🔷 ${S.tok}<br>`;
  const k=document.createElement('button');k.className='btn s t';k.textContent='🔷 '+FRESH;k.onclick=()=>{if(S.tok<FRESH){sfx.hit();return}S.tok-=FRESH;save();openBox(0,1,.08)};c.appendChild(k);b.appendChild(c)}
+function redeemDevCode(){
+ const input=$('devCodeInput'),status=$('devCodeStatus');
+ if(!input||!status)return;
+ if(input.value.trim().toLowerCase()!=='mrkbob6277'){
+  status.textContent='INVALID CODE';status.style.color='#f09a8a';sfx.hit();return;
+ }
+ S.own=S.own||{};
+ PARTS.forEach((part,i)=>{S.own[i]=1});
+ S.skins=SKINS.map((skin,i)=>i);
+ if(!Number.isInteger(S.skin)||!SKINS[S.skin])S.skin=0;
+ save();
+ status.textContent='UNLOCKED ALL '+SKINS.length+' SKINS + '+PARTS.length+' WEAPON PARTS';
+ status.style.color='#7be0a0';
+ input.value='';sfx.up();
+}
 function renderSkins(n){const g=$('skg');g.innerHTML='';const left=SKINS.map((k,i)=>i).filter(i=>!S.skins.includes(i));
 const cc=document.createElement('div');cc.className='card';cc.style.setProperty('--rc','#9b6ae0');cc.style.cursor='default';cc.innerHTML='<div style="font-size:48px">\uD83C\uDFAD</div><b>Skin Crate</b>'+(n!=null?'<span style="color:#f2a33a">UNLOCKED: '+SKINS[n].n+'!</span>':left.length+' skins left<br>No duplicates')+'<br>';
 const kb=document.createElement('button');kb.className='btn s t';kb.textContent=left.length?'\uD83E\uDE99 500':'ALL OWNED';
@@ -648,6 +694,47 @@ const r2=n=>Math.round(n*100)/100,cl=(n,a)=>Math.max(-a,Math.min(a,+n||0)),clean
 function getName(){const v=clean($('nm').value);S.name=v;save();return v}
 function feed(t){const d=document.createElement('div');d.textContent=t;d.style.cssText='font:18px var(--f);letter-spacing:.06em;text-shadow:2px 2px 0 #000;margin:2px';$('feed').appendChild(d);setTimeout(()=>d.remove(),4500)}
 const roster=()=>Object.entries(NP).map(([id,p])=>[id,p.name,p.skin,p.k,p.d,p.bp|0]);
+let lobbyChatOpen=0,lobbyChatHadLock=0,chatRate=Object.create(null);
+function lobbyChatAllowed(){return !!(mp&&socket&&socket.connected&&(inRound||$('lobby').classList.contains('on')))}
+function cleanLobbyChatText(value){return String(value==null?'':value).replace(/[\r\n\t]+/g,' ').replace(/[\u0000-\u001F\u007F]/g,'').slice(0,120).trim()}
+function resetLobbyChat(){
+ if(lobbyChatOpen)closeLobbyChat(false);
+ const root=$('lchat'),list=$('lchatMsgs');
+ if(list)list.innerHTML='';
+ if(root)root.classList.remove('open','has-messages');
+ chatRate=Object.create(null);
+}
+function showLobbyChatMessage(m){
+ if(!lobbyChatAllowed())return;
+ const root=$('lchat'),list=$('lchatMsgs');if(!root||!list)return;
+ const text=cleanLobbyChatText(m.text);if(!text)return;
+ const line=document.createElement('div');line.className='lchat-line';
+ const name=document.createElement('span');name.className='lchat-name';name.textContent=clean(m.name||'Player');
+ const body=document.createElement('span');body.className='lchat-text';body.textContent=text;
+ line.append(name,body);list.appendChild(line);
+ while(list.children.length>7)list.firstElementChild.remove();
+ root.classList.add('has-messages');
+ setTimeout(()=>{line.classList.add('out');setTimeout(()=>{line.remove();if(!list.children.length&&!lobbyChatOpen)root.classList.remove('has-messages')},260)},7000);
+}
+function openLobbyChat(){
+ if(!lobbyChatAllowed()||lobbyChatOpen)return;
+ keys.KeyT=0;lobbyChatOpen=1;lobbyChatHadLock=!!document.pointerLockElement;
+ $('lchat').classList.add('open');
+ if(lobbyChatHadLock&&document.exitPointerLock)document.exitPointerLock();
+ const input=$('lchatInput');input.value='';input.focus();
+}
+function closeLobbyChat(restoreLock=true){
+ if(!lobbyChatOpen)return;
+ const hadLock=!!lobbyChatHadLock;lobbyChatOpen=0;lobbyChatHadLock=0;
+ $('lchat').classList.remove('open');
+ if(restoreLock&&hadLock&&playing&&R&&R.domElement){$('pause').classList.remove('on');try{R.domElement.requestPointerLock()}catch(e){}}
+ if(!$('lchatMsgs').children.length)$('lchat').classList.remove('has-messages');
+}
+function sendLobbyChat(){
+ const input=$('lchatInput');if(!input||!lobbyChatAllowed())return;
+ const text=cleanLobbyChatText(input.value);if(text)tx({t:'chat',text});
+ closeLobbyChat(true);
+}
 function dropR(p){if(p&&p.r&&sc){sc.remove(p.r.ch.root);const i=dummies.indexOf(p.r);if(i>=0)dummies.splice(i,1)}if(p)p.r=null}
 
 function bc(m){
@@ -668,6 +755,7 @@ function tx(m){
   }
   if(m.t=='f') bc(m);
   else if(m.t=='ms') bc(m);
+  else if(m.t=='chat'){const text=cleanLobbyChatText(m.text);if(text){const cm={t:'chat',id:me,name:NP[me]?NP[me].name:(S.name||'Host'),text};bc(cm);showLobbyChatMessage(cm)}}
   else if(m.t=='hit'){
     if(m.to===me) onMsg(m);
     else if(socket && socket.connected) socket.emit('to-client', { to: m.to, msg: m });
@@ -698,7 +786,7 @@ async function hostLobby(){
   const ready = await ensureServerAwake("Starting server...");
   if(!ready) return;
 
-  mp=1;host=1;const nm=getName();
+  mp=1;host=1;resetLobbyChat();const nm=getName();
   lcode=Math.random().toString(36).slice(2,6).toUpperCase();
   if(socket){try{socket.disconnect()}catch(e){}}
   
@@ -742,7 +830,7 @@ async function joinLobby(code){
   const ready = await ensureServerAwake("Connecting...");
   if(!ready) return;
 
-  mp=1;host=0;const nm=getName();
+  mp=1;host=0;resetLobbyChat();const nm=getName();
   if(socket){try{socket.disconnect()}catch(e){}}
   
   socket = io('https://' + SIGNALING_HOST, { transports: ['websocket', 'polling'] });
@@ -764,6 +852,7 @@ async function joinLobby(code){
 
   socket.on('promoted-to-host', () => {
     host = 1;
+    socket.on('from-client', ({ from, msg }) => { hData(from, msg); });
     feed('👑 Host left. You are now the host!');
     if(hostInterval) clearInterval(hostInterval);
     hostInterval = setInterval(hTick, 66);
@@ -782,6 +871,13 @@ function hData(fromId, m){
     return;
   }
   if(!NP[fromId])return;
+  if(m.t=='chat'){
+    const text=cleanLobbyChatText(m.text);if(!text)return;
+    const now=Date.now(),recent=(chatRate[fromId]||[]).filter(t=>now-t<5000);
+    if(recent.length>=5)return;
+    recent.push(now);chatRate[fromId]=recent;
+    const cm={t:'chat',id:fromId,name:NP[fromId].name,text};bc(cm);showLobbyChatMessage(cm);return;
+  }
   if(m.t=='st'){if(Array.isArray(m.s))ST[fromId]=m.s}
   else if(m.t=='f')bc(m),visShot(m);
   else if(m.t=='ms')bc(m),visMelee(m);
@@ -796,7 +892,8 @@ function hData(fromId, m){
 function scoreKill(k,v){if(phase!='play'||!NP[v])return;NP[v].d++;NP[v].s=0;if(k&&k!==v&&NP[k]){NP[k].k++;NP[k].s=(NP[k].s||0)+1;const nm=KSN[NP[k].s];if(nm){const k2={t:'ks',id:k,n:NP[k].name,c:NP[k].s,nm};bc(k2);onMsg(k2)}}const km={t:'k',v,k,r:roster()};bc(km);onMsg(km)}
 function setRoster(r){const pb=NP[me]?NP[me].bp|0:0,nn={};for(const [id,n,sk,k,d,bp] of r){const o=NP[id];if(o&&o.skin!==sk)dropR(o);nn[id]=Object.assign(o||{},{name:n,skin:sk,k,d,bp:bp|0})}for(const id in NP)if(!nn[id])dropR(NP[id]);NP=nn;if(gmode==1&&inRound&&NP[me]&&(NP[me].bp|0)>pb)tone(1175,0,.06,'sine',.05);renderLobby();if(tabOn)drawTab()}
 function onMsg(m){const t=m.t;
- if(t=='S'){eoff=eoff?eoff+((performance.now()-m.el*1000)-eoff)*.1:performance.now()-m.el*1000;applyS(m.s)}
+ if(t=='chat')showLobbyChatMessage(m);
+ else if(t=='S'){eoff=eoff?eoff+((performance.now()-m.el*1000)-eoff)*.1:performance.now()-m.el*1000;applyS(m.s)}
  else if(t=='M'){if(m.gm!=null&&m.gm!==gmode){gmode=m.gm;modeUI()}if(m.bk)setBK(m.bk,m.bi);else if(m.ph!='play')BK=null;setRoster(m.r);tlEnd=performance.now()+m.tl*1000;if(m.wh)WH=m.wh;if(m.ph!=phase)applyPhase(m.ph,phase)}
  else if(t=='k'){setRoster(m.r);const a=NP[m.k],b=NP[m.v],kl=a&&m.k!==m.v;feed((kl?a.name+' ▸ ':'')+(b?b.name:'?')+(kl?'':' fell'));if(kl&&m.k===me&&inRound){koFx();if(gmode!=1){S.coins+=25;save()}onKill()}}
  else if(t=='ks'){feed('🔥 '+m.n+' — '+m.nm+' ('+m.c+')');if(inRound){if(m.id===me)msg(m.nm+' ×'+m.c);sfx.streak(ksL(m.c))}}else if(t=='f')visShot(m);else if(t=='ms')visMelee(m);else if(t=='hit'&&m.to===me)gotHit(m);else if(t=='full'){alert('Lobby is full');show('lobby')}}
@@ -822,7 +919,7 @@ function applyPhase(ph,old){phase=ph;renderLobby();
  if(ph=='end'){lock=1;keys={};mDown=false;if(inRound){document.exitPointerLock&&document.exitPointerLock();showEnd()}}}
 function showLobby(){privUI();$('lj').style.display='none';$('lr').style.display='';$('lcode').textContent=lcode;show('lobby');renderLobby()}
 function renderLobby(){if(!$('lpl')||!mp)return;$('lpl').innerHTML=Object.entries(NP).map(([id,p])=>`<div style="font:20px var(--f);padding:2px 8px">${id===(host?me:'')?'👑 ':''}${p.name}</div>`).join('');$('lstart').style.display=host&&phase=='lobby'?'':'none';const pv=$('lpv2');if(pv)pv.style.display=host?'':'none';const lm=$('lmd2');if(lm)lm.style.display=host&&phase=='lobby'?'':'none';modeUI()}
-addEventListener('keydown',e=>{if(e.code=='Tab'){e.preventDefault();if(mp&&playing){tabOn=1;drawTab();$('tab').style.display='block'}}});addEventListener('keyup',e=>{if(e.code=='Tab'){tabOn=0;$('tab').style.display='none'}});
+addEventListener('keydown',e=>{if(e.code=='Tab'&&lobbyChatOpen){e.preventDefault();return}if(e.code=='Tab'){e.preventDefault();if(mp&&playing){tabOn=1;drawTab();$('tab').style.display='block'}}});addEventListener('keyup',e=>{if(e.code=='Tab'){tabOn=0;$('tab').style.display='none'}});
 setInterval(()=>{const b=$('mpb');if(!mp||(playing&&(inRound||solo))){b.style.display='none';return}b.style.display='block';const l=Math.max(0,Math.ceil((tlEnd-performance.now())/1000));$('mpt').textContent='LOBBY '+lcode+' · '+(phase=='lobby'?(l>0?'MATCH STARTS IN '+l:'WAITING FOR PLAYERS'):phase=='play'?'ROUND LIVE '+fmt(l):'NEXT ROUND IN '+l)+' ';$('mpj').style.display=phase=='play'?'':'none';const c=$('ecd');if(c&&phase=='end')c.textContent='NEXT ROUND IN '+l},250);
 /* ---------- 3D GAME ---------- */
 let R,sc,cam,solids=[],ents=[],pellets=[],fx=[],coinsL=[],hpBoxes=[],pads=[],dummies=[],shells=[],P,playing=false,keys={},yaw=0,pitch=.15,mDown=false,shake=0,plane,kos=0;
@@ -1121,8 +1218,8 @@ function initGL(){R=new THREE.WebGLRenderer({antialias:true});R.setPixelRatio(Ma
 let solo=0;function startGame(s){solo=s?1:0;if(mp&&!solo){if(phase!='play')return;inRound=1;lock=0;tx({t:'sk',skin:S.skin})}au();if(!R)initGL();if(mp&&!solo&&!startGame.d){startGame.d=1;for(const d of dummies.splice(0)){d.ch.root.visible=false;d.bar.visible=false;ents.splice(ents.indexOf(d),1)}}$('hint').style.opacity=.85;clearTimeout(startGame.h);startGame.h=setTimeout(()=>$('hint').style.opacity=.2,14000);sc.remove(P.ch.root);P.ch=mkChar(SKINS[S.skin].c,0,S.skin);glowSk(P.ch,SKINS[S.skin]);buildGun();respawn();document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));$('hud').style.display='block';$('coins').style.display='none';playing=true;R.domElement.requestPointerLock()}
 function respawn(){const q=SPS[Math.random()*SPS.length|0],sp=(mp&&inRound)?[q[0]*K,q[1],q[2]*K]:[6,32.6,-60];Object.assign(P,{x:sp[0],y:sp[1],z:sp[2],lastBy:null,lastT:0,sy:null,slT:0,vx:0,vy:0,vz:0,hp:P.mx,inv:2,lh:0,dc:1,dcT:0,dashCd:0,rel:0,ammo:gun().mag,reloading:0,dead:0,dashT:0,weaponMode:P.weaponMode||0,guard:0,lungeT:0,swingT:0});P.ch.root.visible=true;yaw=0;if(sc)puff(new V(P.x,P.y+1,P.z),0xd8d3c4,8,3,.2,.5)}
 function resume(){R.domElement.requestPointerLock()}
-function toMenu(){if(mp&&inRound)tx({t:'st',s:[0,-99,0,0,0,0,0,0]});inRound=0;playing=false;document.exitPointerLock&&document.exitPointerLock();$('pause').classList.remove('on');$('hud').style.display='none';$('coins').style.display='';show('menu')}
-document.addEventListener('pointerlockchange',()=>{if(playing&&!(mp&&phase=='end'))$('pause').classList.toggle('on',!document.pointerLockElement)});
+function toMenu(){if(lobbyChatOpen)closeLobbyChat(false);$('lchat').classList.remove('open','has-messages');$('lchatMsgs').innerHTML='';if(mp&&inRound)tx({t:'st',s:[0,-99,0,0,0,0,0,0]});inRound=0;playing=false;document.exitPointerLock&&document.exitPointerLock();$('pause').classList.remove('on');$('hud').style.display='none';$('coins').style.display='';show('menu')}
+document.addEventListener('pointerlockchange',()=>{if(playing&&!(mp&&phase=='end')&&!lobbyChatOpen)$('pause').classList.toggle('on',!document.pointerLockElement)});
 let swayX = 0, swayY = 0;
 addEventListener('mousemove', e => {
   if (playing && document.pointerLockElement) {
@@ -1133,7 +1230,13 @@ addEventListener('mousemove', e => {
   }
 });
 addEventListener('mousedown',e=>{if(!playing||!document.pointerLockElement)return;if(e.button===0)mDown=true;else if(e.button===2)e.preventDefault()});addEventListener('mouseup',e=>{if(e.button===0)mDown=false;if(e.button===2&&P)P.guard=0});addEventListener('contextmenu',e=>{if(playing)e.preventDefault()});
-addEventListener('keydown',e=>{if(lock)return;keys[e.code]=1;if(e.shiftKey)keys.Shift=1;if(e.code=='Space'&&e.target.tagName!='INPUT')e.preventDefault();});addEventListener('keyup',e=>{keys[e.code]=0;if(!e.shiftKey)keys.Shift=0});
+addEventListener('keydown',e=>{if(lock||lobbyChatOpen)return;keys[e.code]=1;if(e.shiftKey)keys.Shift=1;if(e.code=='Space'&&e.target.tagName!='INPUT')e.preventDefault();});addEventListener('keyup',e=>{if(lobbyChatOpen)return;keys[e.code]=0;if(!e.shiftKey)keys.Shift=0});
+addEventListener('keydown',e=>{
+ if(e.code=='KeyT'&&!e.repeat&&!lobbyChatOpen&&e.target.tagName!='INPUT'&&lobbyChatAllowed()){e.preventDefault();openLobbyChat();return}
+ if(!lobbyChatOpen)return;
+ if(e.code=='Enter'){e.preventDefault();sendLobbyChat()}
+ else if(e.code=='Escape'){e.preventDefault();closeLobbyChat(true)}
+});
 
 function phys(e,dt){
  const yBefore=e.y,px0=e.x,pz0=e.z,bad0=rampUnder(e.x,e.z,e.y,e.h);
@@ -1389,6 +1492,5 @@ function wheelWin(){const o=$('endo'),r=$('wres');if(!r||!WH)return;const v=WV[W
  if(WH.id===me&&WH.n>1&&wheelWin.p!==WH.t){wheelWin.p=WH.t;S.coins+=v;save()}
  dop.fan(jp?3:v>=500?2:1);wconf(jp?260:v>=500?120:70,jp);flash(jp?'#ffd27a':'#7be0a0',jp?.7:.3);o.classList.remove('shk');void o.offsetWidth;o.classList.add('shk');
  if(jp){const h=$('whh');if(h)h.textContent='\uD83D\uDCB0\uD83D\uDCB0 ULTIMATE JACKPOT \uD83D\uDCB0\uD83D\uDCB0';[400,800,1200,1600].forEach(t=>setTimeout(()=>{wconf(120,1);flash('#ffffff',.4);dop.up()},t))}else if(v>=500)setTimeout(()=>{wconf(60,0);dop.up()},500)}
+const devCodeField=$('devCodeInput');if(devCodeField)devCodeField.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();redeemDevCode()}});
 </script></body></html>
-
-
